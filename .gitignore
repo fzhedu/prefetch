@@ -21,4 +21,7 @@ aclocal.m4
 .idea
 .project
 .cproject
+autom4te.cache/
+src/.deps/
+
 

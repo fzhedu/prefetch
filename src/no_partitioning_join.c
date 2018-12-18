@@ -20,6 +20,7 @@
 #include <stdlib.h>   /* memalign */
 #include <sys/time.h> /* gettimeofday */
 
+#include <smmintrin.h>
 #include "no_partitioning_join.h"
 #include "npj_params.h"  /* constant parameters */
 #include "npj_types.h"   /* bucket_t, hashtable_t, bucket_buffer_t */
@@ -212,6 +213,33 @@ void destroy_hashtable(hashtable_t *ht) {
 }
 
 /**
+ * print the distribution of the hash table
+ *
+ * @param ht pointer to hashtable
+ */
+
+void print_hashtable(hashtable_t *const ht) {
+  uint32_t num[128], max = 0;
+  bucket_t *curr = NULL;
+  memset(num, 0, sizeof(num));
+  for (uint32_t i = 0; i < ht->num_buckets; ++i) {
+    curr = ht->buckets + i;
+    ++num[curr->lenth];
+    if (curr->lenth > max) {
+      max = curr->lenth;
+    }
+  }
+  assert(max < 128);
+  printf("max = %d\t", max);
+  puts("======the statics of a hash table ====");
+  for (uint32_t i = 0; i <= max; ++i) {
+    if (num[i] > 0) {
+      printf("len= %2d, num= %3d\n", i, num[i]);
+    }
+  }
+  puts("==END=the statics of a hash table ====");
+}
+/**
  * Single-thread hashtable build method, ht is pre-allocated.
  *
  * @param ht hastable to be built
@@ -306,6 +334,135 @@ int64_t probe_hashtable(hashtable_t *ht, relation_t *rel, void *output) {
 
       b = b->next; /* follow overflow pointer */
     } while (b);
+  }
+
+  return matches;
+}
+
+/**
+ * the raw prefetching in original ETH codes
+ * Probes the hashtable for the given outer relation, returns num results.
+ * This probing method is used for both single and multi-threaded version.
+ *
+ * @param ht hashtable to be probed
+ * @param rel the probing outer relation
+ * @param output chained tuple buffer to write join results, i.e. rid pairs.
+ *
+ * @return number of matching tuples
+ */
+#define PREFETCH_NPJ
+int64_t probe_hashtable_raw_prefetch(hashtable_t *ht, relation_t *rel,
+                                     void *output) {
+  uint32_t i, j;
+  int64_t matches;
+
+  const uint32_t hashmask = ht->hash_mask;
+  const uint32_t skipbits = ht->skip_bits;
+#ifdef PREFETCH_NPJ
+  size_t prefetch_index = PREFETCH_DISTANCE;
+#endif
+
+  matches = 0;
+
+#ifdef JOIN_RESULT_MATERIALIZE
+  chainedtuplebuffer_t *chainedbuf = (chainedtuplebuffer_t *)output;
+#endif
+
+  for (i = 0; i < rel->num_tuples; i++) {
+#ifdef PREFETCH_NPJ
+    if (prefetch_index < rel->num_tuples) {
+      intkey_t idx_prefetch =
+          HASH(rel->tuples[prefetch_index++].key, hashmask, skipbits);
+      __builtin_prefetch(ht->buckets + idx_prefetch, 0, 1);
+    }
+#endif
+
+    intkey_t idx = HASH(rel->tuples[i].key, hashmask, skipbits);
+    bucket_t *b = ht->buckets + idx;
+
+    do {
+      for (j = 0; j < b->count; j++) {
+        if (rel->tuples[i].key == b->tuples[j].key) {
+          matches++;
+
+#ifdef JOIN_RESULT_MATERIALIZE
+          /* copy to the result buffer */
+          tuple_t *joinres = cb_next_writepos(chainedbuf);
+          joinres->key = b->tuples[j].payload;       /* R-rid */
+          joinres->payload = rel->tuples[i].payload; /* S-rid */
+#endif
+        }
+      }
+
+      b = b->next; /* follow overflow pointer */
+    } while (b);
+  }
+
+  return matches;
+}
+
+int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
+  int64_t matches = 0;
+  int16_t k = 0, done = 0;
+  amac_state_t state[AMACBufferSize];
+  const uint32_t hashmask = ht->hash_mask;
+  const uint32_t skipbits = ht->skip_bits;
+  chainedtuplebuffer_t *chainedbuf = (chainedtuplebuffer_t *)output;
+
+  // init # of the state
+  for (int i = 0; i < AMACBufferSize; ++i) {
+    state[i].stage = 1;
+  }
+  for (uint64_t cur = 0; (cur < rel->num_tuples) || (done < AMACBufferSize);) {
+    k = (k >= AMACBufferSize) ? 0 : k;
+    switch (state[k].stage) {
+      case 1: {
+        if (cur >= rel->num_tuples) {
+          ++done;
+          state[k].stage = 3;
+          ++k;
+          break;
+        }
+        _mm_prefetch((char *)(rel->tuples + cur + 10), _MM_HINT_T0);
+
+        intkey_t idx = HASH(rel->tuples[cur].key, hashmask, skipbits);
+        state[k].b = ht->buckets + idx;
+        //__builtin_prefetch(state[k].b, 0, 1);
+        _mm_prefetch((char *)(state[k].b), _MM_HINT_T0);
+
+        state[k].tuple_id = cur;
+        state[k].stage = 0;
+        ++cur;
+        ++k;
+      } break;
+      case 0: {
+        bucket_t *b = state[k].b;
+        //#pragma unroll(2)
+
+        for (int16_t j = 0; j < b->count; ++j) {
+          if (rel->tuples[state[k].tuple_id].key == b->tuples[j].key) {
+            ++matches;
+
+            /* copy to the result buffer */
+            tuple_t *joinres = cb_next_writepos(chainedbuf);
+            joinres->key = b->tuples[j].payload; /* R-rid */
+            joinres->payload =
+                rel->tuples[state[k].tuple_id].payload; /* S-rid */
+          }
+        }
+        b = b->next; /* follow overflow pointer */
+        if (b) {
+          state[k].b = b;
+          // __builtin_prefetch(state[k].b, 0, 1);
+          _mm_prefetch((char *)(state[k].b), _MM_HINT_T0);
+
+          ++k;
+        } else {
+          state[k].stage = 1;
+        }
+      } break;
+      default: { puts("WARNING!"); }
+    }
   }
 
   return matches;
@@ -429,6 +586,7 @@ void build_hashtable_mt(hashtable_t *ht, relation_t *rel,
     nxt = curr->next;
 
     if (curr->count == BUCKET_SIZE) {
+      // add new bucket after the first
       if (!nxt || nxt->count == BUCKET_SIZE) {
         bucket_t *b;
         /* b = (bucket_t*) calloc(1, sizeof(bucket_t)); */
@@ -438,6 +596,7 @@ void build_hashtable_mt(hashtable_t *ht, relation_t *rel,
         b->next = nxt;
         b->count = 1;
         dest = b->tuples;
+        curr->lenth++;
       } else {
         dest = nxt->tuples + nxt->count;
         nxt->count++;
@@ -445,6 +604,7 @@ void build_hashtable_mt(hashtable_t *ht, relation_t *rel,
     } else {
       dest = curr->tuples + curr->count;
       curr->count++;
+      curr->lenth = 1;
     }
 
     *dest = rel->tuples[i];
@@ -459,10 +619,13 @@ void build_hashtable_mt(hashtable_t *ht, relation_t *rel,
  *
  * @return
  */
+volatile char g_lock;
+uint64_t total_num = 0;
 void *npo_thread(void *param) {
   int rv;
   arg_t *args = (arg_t *)param;
-
+  struct timeval t1, t2;
+  int deltaT = 0;
   /* allocate overflow buffer for each thread */
   bucket_buffer_t *overflowbuf;
   init_bucket_buffer(&overflowbuf);
@@ -486,13 +649,19 @@ void *npo_thread(void *param) {
     args->timer3 = 0; /* no partitionig phase */
   }
 #endif
-
+  gettimeofday(&t1, NULL);
   /* insert tuples from the assigned part of relR to the ht */
   build_hashtable_mt(args->ht, &args->relR, &overflowbuf);
 
   /* wait at a barrier until each thread completes build phase */
   BARRIER_ARRIVE(args->barrier, rv);
-
+  if (args->tid == 0) {
+    gettimeofday(&t2, NULL);
+    deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+    printf("--------build costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+    print_hashtable(args->ht);
+    printf("size of bucket_t =%d\n", sizeof(bucket_t));
+  }
 #ifdef PERF_COUNTERS
   if (args->tid == 0) {
     PCM_stop();
@@ -510,6 +679,8 @@ void *npo_thread(void *param) {
     stopTimer(&args->timer2);
   }
 #endif
+  ////////// raw prefetch
+  BARRIER_ARRIVE(args->barrier, rv);
 
 #ifdef JOIN_RESULT_MATERIALIZE
   chainedtuplebuffer_t *chainedbuf = chainedtuplebuffer_init();
@@ -518,11 +689,58 @@ void *npo_thread(void *param) {
 #endif
 
   /* probe for matching tuples from the assigned part of relS */
-  struct timeval t1, t2;
-  int deltaT = 0;
   gettimeofday(&t1, NULL);
   args->num_results = probe_hashtable(args->ht, &args->relS, chainedbuf);
+  lock(&g_lock);
+  total_num += args->num_results;
+  unlock(&g_lock);
+  BARRIER_ARRIVE(args->barrier, rv);
+  if (args->tid == 0) {
+    printf("total result num = %lld\t", total_num);
+    gettimeofday(&t2, NULL);
+    deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+    printf("-------- raw probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+    total_num = 0;
+  }
 
+  ////////////////GP probe
+  BARRIER_ARRIVE(args->barrier, rv);
+  chainedtuplebuffer_t *chainedbuf_rp = chainedtuplebuffer_init();
+  gettimeofday(&t1, NULL);
+  args->num_results =
+      probe_hashtable_raw_prefetch(args->ht, &args->relS, chainedbuf_rp);
+  lock(&g_lock);
+  total_num += args->num_results;
+  unlock(&g_lock);
+  BARRIER_ARRIVE(args->barrier, rv);
+  if (args->tid == 0) {
+    printf("total result num = %lld\t", total_num);
+    gettimeofday(&t2, NULL);
+    deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+    printf("-------- GP  probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+    total_num = 0;
+  }
+  chainedtuplebuffer_free(chainedbuf_rp);
+
+  ////////////////AMAC probe
+  BARRIER_ARRIVE(args->barrier, rv);
+  chainedtuplebuffer_t *chainedbuf_amac = chainedtuplebuffer_init();
+  gettimeofday(&t1, NULL);
+  args->num_results = probe_AMAC(args->ht, &args->relS, chainedbuf_amac);
+  lock(&g_lock);
+  total_num += args->num_results;
+  unlock(&g_lock);
+  BARRIER_ARRIVE(args->barrier, rv);
+  if (args->tid == 0) {
+    printf("total result num = %lld\t", total_num);
+    gettimeofday(&t2, NULL);
+    deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+    printf("--------AMAC probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+    total_num = 0;
+  }
+  chainedtuplebuffer_free(chainedbuf_amac);
+
+//------------------------------------
 #ifdef JOIN_RESULT_MATERIALIZE
   args->threadresult->nresults = args->num_results;
   args->threadresult->threadid = args->tid;
@@ -530,6 +748,7 @@ void *npo_thread(void *param) {
 #endif
 
 #ifndef NO_TIMING
+
   /* for a reliable timing we have to wait until all finishes */
   BARRIER_ARRIVE(args->barrier, rv);
 
@@ -537,10 +756,6 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     stopTimer(&args->timer1);
     gettimeofday(&args->end, NULL);
-    gettimeofday(&t2, NULL);
-    deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-    printf("--------all threads probe costs time (ms) = %lf\n",
-           deltaT * 1.0 / 1000);
   }
 #endif
 
