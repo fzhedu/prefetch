@@ -6,8 +6,6 @@ Makefile
 src/mchashjoins
 install-sh
 config.guess
-config.h
-config.h.in
 config.h.in*
 config.h.in~
 config.log
@@ -23,5 +21,5 @@ aclocal.m4
 .cproject
 autom4te.cache/
 src/.deps/
-
+*.gch
 

@@ -49,7 +49,7 @@ endif
 # if available, add the following flags
 # -mavx, -mtune=niagara2, -mcpu=ultrasparc
 AM_CFLAGS = -Wall -ansi -std=c99 -Wno-format -pedantic \
-	    -g -msse4.2 $(DEFINES) -O3 --mavx2 -mbmi2 -w -fpermissive
+	    -g -msse4.2 $(DEFINES) -w -fpermissive
 
 AM_LDFLAGS =
 CFLAGS = -O3
@@ -62,7 +62,7 @@ mchashjoins_SOURCES =  	npj_params.h prj_params.h types.h npj_types.h 	\
 			cpu_mapping.h cpu_mapping.c 			\
 			genzipf.h genzipf.c generator.h generator.c 	\
 			lock.h rdtsc.h task_queue.h barrier.h affinity.h\
-			tuple_buffer.h					\
+			tuple_buffer.h		prefetch.h			\
 			main.c
 
 mchashjoins_LDFLAGS = $(AM_LDFLAGS) $(MYLDFLAGS) -pthread

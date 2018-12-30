@@ -16,7 +16,7 @@
 
 /** Number of tuples that each bucket can hold */
 #ifndef BUCKET_SIZE
-#define BUCKET_SIZE 3
+#define BUCKET_SIZE 1
 #endif
 
 /** Size of system cache line in bytes */
@@ -35,7 +35,7 @@
 #endif
 
 #ifndef PREFETCH_DISTANCE
-#define PREFETCH_DISTANCE 10
+#define PREFETCH_DISTANCE 30
 #endif
 
 #endif /* NPJ_PARAMS_H */

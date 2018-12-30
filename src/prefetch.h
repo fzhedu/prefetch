@@ -32,7 +32,11 @@
 #include "npj_types.h"
 typedef struct amac_state_t amac_state_t;
 
-#define AMACBufferSize 10
+#define AMACBufferSize 30
+#define SEQ_DIS 30
+#define MULTI_TUPLE (BUCKET_SIZE - 1)
+#define REPEAT_PROBE 2
+#define SLEEP_TIME 0
 struct amac_state_t {
   int64_t tuple_id;
   bucket_t* b;
