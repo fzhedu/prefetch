@@ -22,4 +22,6 @@ aclocal.m4
 autom4te.cache/
 src/.deps/
 *.gch
-
+depcomp
+ltmain.sh
+missing
