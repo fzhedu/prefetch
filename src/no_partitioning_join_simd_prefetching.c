@@ -5,6 +5,7 @@
 #include "prefetch.h"
 #include "tuple_buffer.h"
 #define WORDSIZE 8
+// target for 8B keys and 8B payload
 int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
   int64_t matches = 0;
   int32_t new_add = 0;
@@ -19,7 +20,8 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
           v_shift = _mm512_set1_epi64(ht->skip_bits), v_cell_hash,
           v_ht_pos = _mm512_set1_epi64(0), v_neg_one512 = _mm512_set1_epi64(-1),
           v_ht_upper, v_zero512 = _mm512_set1_epi64(0),
-          v_one = _mm512_set1_epi64(1), v_next_addr = _mm512_set1_epi64(0),
+          v_next_addr = _mm512_set1_epi64(0),
+          v_write_index = _mm512_set1_epi64(0),
           v_ht_addr = _mm512_set1_epi64(ht->buckets),
           v_word_size = _mm512_set1_epi64(WORDSIZE),
           v_tuple_size = _mm512_set1_epi64(sizeof(tuple_t)),
@@ -41,7 +43,7 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
 ///////// step 1: load new tuples' address offsets
 // the offset should be within MAX_32INT_
 // the tail depends on the number of joins and tuples in each bucket
-#if SEQPREFETCH
+#if !SEQPREFETCH
     _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                  _MM_HINT_T0);
     _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
@@ -53,14 +55,15 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
     _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
                  _MM_HINT_T0);
 #endif
+    // directly use cur, instead of cur_offset to control the offset to rel.
+    // In this case, using step = 16 to gather data, but step is larger
+    // than the scale 1,2,4 or 8
     v_offset = _mm512_add_epi64(_mm512_set1_epi64(cur_offset), v_base_offset);
     v_addr_offset = _mm512_mask_expand_epi64(
         v_addr_offset, _mm512_knot(m_have_tuple), v_offset);
     // count the number of empty tuples
     m_new_cells = _mm512_knot(m_have_tuple);
     new_add = _mm_popcnt_u32(m_new_cells);
-    assert(new_add < 9 && "new add > 8");
-
     cur_offset = cur_offset + base_off[new_add];
     cur = cur + new_add;
     m_have_tuple = _mm512_cmpgt_epi64_mask(v_base_offset_upper, v_addr_offset);
@@ -76,6 +79,8 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
     v_cell_hash = _mm512_mullo_epi64(v_cell_hash, v_bucket_size);
     v_ht_pos =
         _mm512_mask_add_epi64(v_next_addr, m_new_cells, v_cell_hash, v_ht_addr);
+
+    /////////////////// random access
     v_ht_cell = _mm512_mask_i64gather_epi64(
         v_neg_one512, m_have_tuple, _mm512_add_epi64(v_ht_pos, v_tuple_size), 0,
         1);  // note the offset of the tuple in %bucket_t%
@@ -83,7 +88,8 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
     ///// step 4: compare;
     m_match = _mm512_cmpeq_epi64_mask(v_tuple_cell, v_ht_cell);
     m_match = _mm512_kand(m_match, m_have_tuple);
-    matches += _mm_popcnt_u32(m_match);
+    new_add = _mm_popcnt_u32(m_match);
+    matches += new_add;
     v_next_addr = _mm512_mask_i64gather_epi64(
         v_zero512, m_have_tuple, _mm512_add_epi64(v_ht_pos, v_next_off), 0, 1);
     m_have_tuple = _mm512_kand(_mm512_cmpneq_epi64_mask(v_next_addr, v_zero512),
@@ -93,7 +99,16 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
         ((void *)rel->tuples), 1);
     v_right_payload = _mm512_mask_i64gather_epi64(
         v_neg_one512, m_match, _mm512_add_epi64(v_ht_pos, v_payload_off), 0, 1);
-    // to scatter
+// to scatter
+#if !SCATTER
+    tuple_t *joinres = cb_next_n_writepos(chainedbuf, new_add);
+    v_write_index = _mm512_mask_expand_epi64(v_zero512, m_match, v_base_offset);
+    _mm512_mask_i64scatter_epi64((void *)joinres, m_match, v_write_index,
+                                 v_left_payload, 1);
+    v_write_index = _mm512_add_epi64(v_write_index, v_word_size);
+    _mm512_mask_i64scatter_epi64((void *)joinres, m_match, v_write_index,
+                                 v_right_payload, 1);
+#else
     for (int i = 0; (i < vector_scale) && m_match;
          ++i, m_match = (m_match >> 1)) {
       if (m_match & 1) {
@@ -102,6 +117,7 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
         joinres->payload = right_payload[i];
       }
     }
+#endif
   }
   return matches;
 }

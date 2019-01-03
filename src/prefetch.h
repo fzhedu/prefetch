@@ -37,6 +37,7 @@ typedef struct amac_state_t amac_state_t;
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
 #define REPEAT_PROBE 2
 #define SLEEP_TIME 0
+#define PDIS 128
 struct amac_state_t {
   int64_t tuple_id;
   bucket_t *b;

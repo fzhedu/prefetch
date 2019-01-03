@@ -92,6 +92,21 @@ static inline tuple_t *cb_next_writepos(chainedtuplebuffer_t *cb) {
 
   return (cb->buf->tuples + cb->writepos++);
 }
+static inline tuple_t *cb_next_n_writepos(chainedtuplebuffer_t *cb, int size) {
+  if (cb->writepos + size >= CHAINEDBUFF_NUMTUPLESPERBUF) {
+    tuplebuffer_t *newbuf = (tuplebuffer_t *)malloc(sizeof(tuplebuffer_t));
+    posix_memalign((void **)&newbuf->tuples, CACHE_LINE_SIZE,
+                   sizeof(tuple_t) * CHAINEDBUFF_NUMTUPLESPERBUF);
+
+    newbuf->next = cb->buf;
+    cb->buf = newbuf;
+    cb->writepos = 0;
+    cb->numbufs++;
+  }
+  tuple_t *res = cb->buf->tuples + cb->writepos;
+  cb->writepos += size;
+  return res;
+}
 
 static chainedtuplebuffer_t *chainedtuplebuffer_init(void) {
   chainedtuplebuffer_t *newcb =
