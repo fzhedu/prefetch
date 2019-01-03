@@ -32,10 +32,10 @@
 #include <immintrin.h>
 #include "types.h"
 #include "npj_types.h"
-typedef struct amac_state_t amac_state_t;
+typedef struct amac_state_t scalar_state_t;
 typedef struct StateSIMD StateSIMD;
 
-#define AMACBufferSize 30
+#define ScalarStateSize 30
 #define SIMDStateSize 4
 #define SEQ_DIS 30
 #define MULTI_TUPLE (BUCKET_SIZE - 1)

@@ -413,20 +413,85 @@ int64_t probe_hashtable_raw_prefetch(hashtable_t *ht, relation_t *rel,
   return matches;
 }
 
-int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
+int64_t probe_gp(hashtable_t *ht, relation_t *rel, void *output) {
   int64_t matches = 0;
-  int16_t k = 0, done = 0, j = 0;
-  amac_state_t state[AMACBufferSize];
+  int16_t k = 0, done = 0, j = 0, stage2_size = 0;
+  scalar_state_t state[ScalarStateSize];
   const uint32_t hashmask = ht->hash_mask;
   const uint32_t skipbits = ht->skip_bits;
   chainedtuplebuffer_t *chainedbuf = (chainedtuplebuffer_t *)output;
 
   // init # of the state
-  for (int i = 0; i < AMACBufferSize; ++i) {
+  for (int i = 0; i < ScalarStateSize; ++i) {
     state[i].stage = 1;
   }
-  for (uint64_t cur = 0; (cur < rel->num_tuples) || (done < AMACBufferSize);) {
-    k = (k >= AMACBufferSize) ? 0 : k;
+  for (uint64_t cur = 0; cur < rel->num_tuples;) {
+    // step 1: load tuples from probing table
+    for (k = 0; (k < ScalarStateSize) && (cur < rel->num_tuples); ++k) {
+      _mm_prefetch((char *)(rel->tuples + cur + SEQ_DIS), _MM_HINT_T0);
+
+      intkey_t idx = HASH(rel->tuples[cur].key, hashmask, skipbits);
+      state[k].b = ht->buckets + idx;
+      //__builtin_prefetch(state[k].b, 0, 1);
+      _mm_prefetch((char *)(state[k].b), _MM_HINT_T0);
+
+      state[k].tuple_id = cur;
+      state[k].stage = 0;
+      ++cur;
+    }
+    // step 2: repeating step 2
+    stage2_size = k;
+    done = 0;
+    while (done < stage2_size) {
+      for (k = 0; k < stage2_size; ++k) {
+        bucket_t *b = state[k].b;
+        if (state[k].stage == 1) {
+          continue;
+        }
+        if (b->count == 0) {
+          if (state[k].stage == 0) {
+            ++done;
+          }
+          state[k].stage = 1;
+          continue;
+        }
+        if (rel->tuples[state[k].tuple_id].key == b->tuples[0].key) {
+          ++matches;
+
+          /* copy to the result buffer */
+          tuple_t *joinres = cb_next_writepos(chainedbuf);
+          joinres->key = b->tuples[0].payload;                       /* R-rid */
+          joinres->payload = rel->tuples[state[k].tuple_id].payload; /* S-rid */
+        }
+        b = b->next; /* follow overflow pointer */
+        if (b) {
+          state[k].b = b;
+          // __builtin_prefetch(state[k].b, 0, 1);
+          _mm_prefetch((char *)(state[k].b), _MM_HINT_T0);
+
+        } else {
+          ++done;
+          state[k].stage = 1;
+        }
+      }
+    }
+  }
+  return matches;
+}
+int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
+  int64_t matches = 0;
+  int16_t k = 0, done = 0, j = 0;
+  scalar_state_t state[ScalarStateSize];
+  const uint32_t hashmask = ht->hash_mask;
+  const uint32_t skipbits = ht->skip_bits;
+  chainedtuplebuffer_t *chainedbuf = (chainedtuplebuffer_t *)output;
+
+  // init # of the state
+  for (int i = 0; i < ScalarStateSize; ++i) {
+    state[i].stage = 1;
+  }
+  for (uint64_t cur = 0; (cur < rel->num_tuples) || (done < ScalarStateSize);) {
+    k = (k >= ScalarStateSize) ? 0 : k;
 
     switch (state[k].stage) {
       case 1: {
@@ -724,7 +789,7 @@ void *npo_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("-------- raw probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      printf("-------- RAW probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }
@@ -736,7 +801,7 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-  ////////////////GP probe
+  ////////////////raw GP probe
   chainedtuplebuffer_t *chainedbuf_rp = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
@@ -751,11 +816,37 @@ void *npo_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("-------- GP  probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      printf("------RAW GP probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }
   chainedtuplebuffer_free(chainedbuf_rp);
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+  ////////////////GP probe
+  chainedtuplebuffer_t *chainedbuf_gp = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    gettimeofday(&t1, NULL);
+    args->num_results = probe_gp(args->ht, &args->relS, chainedbuf_gp);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("-------- GP  probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf_gp);
   if (args->tid == 0) {
     puts("+++++sleep begin+++++");
   }
