@@ -39,8 +39,8 @@ typedef struct amac_state_t amac_state_t;
 #define SLEEP_TIME 0
 struct amac_state_t {
   int64_t tuple_id;
-  bucket_t* b;
+  bucket_t *b;
   int16_t stage;
 };
-
+int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output);
 #endif /* SRC_PREFETCH_H_ */

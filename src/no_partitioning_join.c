@@ -773,6 +773,33 @@ void *npo_thread(void *param) {
     }
   }
   chainedtuplebuffer_free(chainedbuf_amac);
+  //////////////////
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+  ////////////////SIMD probe
+  chainedtuplebuffer_t *chainedbuf_simd = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    gettimeofday(&t1, NULL);
+    args->num_results = probe_simd(args->ht, &args->relS, chainedbuf_simd);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("--------SIMD probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf_simd);
 //------------------------------------
 #ifdef JOIN_RESULT_MATERIALIZE
   args->threadresult->nresults = args->num_results;
