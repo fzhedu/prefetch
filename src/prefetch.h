@@ -28,20 +28,33 @@
 
 #ifndef SRC_PREFETCH_H_
 #define SRC_PREFETCH_H_
+#include <assert.h>
+#include <immintrin.h>
 #include "types.h"
 #include "npj_types.h"
 typedef struct amac_state_t amac_state_t;
+typedef struct StateSIMD StateSIMD;
 
 #define AMACBufferSize 30
+#define SIMDStateSize 4
 #define SEQ_DIS 30
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
 #define REPEAT_PROBE 2
 #define SLEEP_TIME 0
 #define PDIS 128
+#define VECTOR_SCALE 8
 struct amac_state_t {
   int64_t tuple_id;
   bucket_t *b;
   int16_t stage;
 };
+struct StateSIMD {
+  __m512i key;
+  __m512i pb_off;
+  __m512i ht_off;
+  __mmask8 m_have_tuple;
+  char stage;
+};
 int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output);
+int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output);
 #endif /* SRC_PREFETCH_H_ */

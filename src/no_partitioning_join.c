@@ -387,6 +387,9 @@ int64_t probe_hashtable_raw_prefetch(hashtable_t *ht, relation_t *rel,
 #if MULTI_TUPLE
       for (j = 0; j < b->count; j++) {
 #else
+      if (b->count == 0) {
+        break;
+      }
       j = 0;
 #endif
         if (rel->tuples[i].key == b->tuples[j].key) {
@@ -451,6 +454,12 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
 //#pragma unroll(2)
 #if MULTI_TUPLE
         for (int16_t j = 0; j < b->count; ++j) {
+#else
+        if (b->count == 0) {
+          state[k].stage = 1;
+          ++k;
+          break;
+        }
 #endif
           if (rel->tuples[state[k].tuple_id].key == b->tuples[j].key) {
             ++matches;
@@ -800,6 +809,34 @@ void *npo_thread(void *param) {
     }
   }
   chainedtuplebuffer_free(chainedbuf_simd);
+  //////////////////
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+  ////////////////SIMD probe
+  chainedtuplebuffer_t *chainedbuf_simd_amac = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    gettimeofday(&t1, NULL);
+    args->num_results =
+        probe_simd_amac(args->ht, &args->relS, chainedbuf_simd_amac);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("---SIMD AMAC probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf_simd_amac);
 //------------------------------------
 #ifdef JOIN_RESULT_MATERIALIZE
   args->threadresult->nresults = args->num_results;
