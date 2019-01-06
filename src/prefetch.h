@@ -35,9 +35,9 @@
 typedef struct amac_state_t scalar_state_t;
 typedef struct StateSIMD StateSIMD;
 
-#define ScalarStateSize 30
-#define SIMDStateSize 4
-#define SEQ_DIS 30
+#define ScalarStateSize 24
+#define SIMDStateSize 5
+#define SEQ_DIS 24
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
 #define REPEAT_PROBE 2
 #define SLEEP_TIME 0
@@ -55,6 +55,5 @@ struct StateSIMD {
   __mmask8 m_have_tuple;
   char stage;
 };
-int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output);
-int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output);
+
 #endif /* SRC_PREFETCH_H_ */

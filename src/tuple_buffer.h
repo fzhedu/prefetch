@@ -77,31 +77,35 @@ static inline tuple_t *cb_read_backwards(chainedtuplebuffer_t *cb) {
 
   return res;
 }
-
+#define MATERIALIZE_ALL 0
 static inline tuple_t *cb_next_writepos(chainedtuplebuffer_t *cb) {
   if (cb->writepos == CHAINEDBUFF_NUMTUPLESPERBUF) {
+#if MATERIALIZE_ALL
     tuplebuffer_t *newbuf = (tuplebuffer_t *)malloc(sizeof(tuplebuffer_t));
     posix_memalign((void **)&newbuf->tuples, CACHE_LINE_SIZE,
                    sizeof(tuple_t) * CHAINEDBUFF_NUMTUPLESPERBUF);
 
     newbuf->next = cb->buf;
     cb->buf = newbuf;
-    cb->writepos = 0;
     cb->numbufs++;
+#endif
+    cb->writepos = 0;
   }
 
   return (cb->buf->tuples + cb->writepos++);
 }
 static inline tuple_t *cb_next_n_writepos(chainedtuplebuffer_t *cb, int size) {
   if (cb->writepos + size >= CHAINEDBUFF_NUMTUPLESPERBUF) {
+#if MATERIALIZE_ALL
     tuplebuffer_t *newbuf = (tuplebuffer_t *)malloc(sizeof(tuplebuffer_t));
     posix_memalign((void **)&newbuf->tuples, CACHE_LINE_SIZE,
                    sizeof(tuple_t) * CHAINEDBUFF_NUMTUPLESPERBUF);
 
     newbuf->next = cb->buf;
     cb->buf = newbuf;
-    cb->writepos = 0;
     cb->numbufs++;
+#endif
+    cb->writepos = 0;
   }
   tuple_t *res = cb->buf->tuples + cb->writepos;
   cb->writepos += size;

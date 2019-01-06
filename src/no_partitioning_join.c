@@ -309,19 +309,18 @@ int64_t probe_hashtable(hashtable_t *ht, relation_t *rel, void *output) {
 #endif
 
   for (i = 0; i < rel->num_tuples; i++) {
-#ifdef PREFETCH_NPJ
-    if (prefetch_index < rel->num_tuples) {
-      intkey_t idx_prefetch =
-          HASH(rel->tuples[prefetch_index++].key, hashmask, skipbits);
-      __builtin_prefetch(ht->buckets + idx_prefetch, 0, 1);
-    }
-#endif
-
     intkey_t idx = HASH(rel->tuples[i].key, hashmask, skipbits);
     bucket_t *b = ht->buckets + idx;
 
     do {
+#if MULTI_TUPLE
       for (j = 0; j < b->count; j++) {
+#else
+      if (b->count == 0) {
+        break;
+      }
+      j = 0;
+#endif
         if (rel->tuples[i].key == b->tuples[j].key) {
           matches++;
 
@@ -332,8 +331,9 @@ int64_t probe_hashtable(hashtable_t *ht, relation_t *rel, void *output) {
           joinres->payload = rel->tuples[i].payload; /* S-rid */
 #endif
         }
+#if MULTI_TUPLE
       }
-
+#endif
       b = b->next; /* follow overflow pointer */
     } while (b);
   }
@@ -768,14 +768,36 @@ void *npo_thread(void *param) {
     stopTimer(&args->timer2);
   }
 #endif
-////////// raw prefetch
+  ////////// raw prefetch
 
-#ifdef JOIN_RESULT_MATERIALIZE
+  chainedtuplebuffer_t *chainedbuf_compact = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    /* probe for matching tuples from the assigned part of relS */
+    gettimeofday(&t1, NULL);
+    args->num_results =
+        probe_simd_amac_compact(args->ht, &args->relS, chainedbuf_compact);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("---- COMPACT probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf_compact);
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
   chainedtuplebuffer_t *chainedbuf = chainedtuplebuffer_init();
-#else
-  void *chainedbuf = NULL;
-#endif
-
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     /* probe for matching tuples from the assigned part of relS */
