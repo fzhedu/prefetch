@@ -776,7 +776,7 @@ void *npo_thread(void *param) {
     /* probe for matching tuples from the assigned part of relS */
     gettimeofday(&t1, NULL);
     args->num_results =
-        probe_simd_amac_compact(args->ht, &args->relS, chainedbuf_compact);
+        probe_simd_amac_compact2(args->ht, &args->relS, chainedbuf_compact);
     lock(&g_lock);
     total_num += args->num_results;
     unlock(&g_lock);
@@ -785,11 +785,40 @@ void *npo_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("---- COMPACT probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      printf("---- COMPACT2 probe costs time (ms) = %lf\n",
+             deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }
   chainedtuplebuffer_free(chainedbuf_compact);
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+  chainedtuplebuffer_t *chainedbuf_compact1 = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    /* probe for matching tuples from the assigned part of relS */
+    gettimeofday(&t1, NULL);
+    args->num_results =
+        probe_simd_amac_compact1(args->ht, &args->relS, chainedbuf_compact1);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("---- COMPACT1 probe costs time (ms) = %lf\n",
+             deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf_compact1);
   if (args->tid == 0) {
     puts("+++++sleep begin+++++");
   }
@@ -978,6 +1007,34 @@ void *npo_thread(void *param) {
     }
   }
   chainedtuplebuffer_free(chainedbuf_simd_amac);
+  //////////////////
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+  ////////////////SIMD AMAC probe
+  chainedtuplebuffer_t *chainedbuf_simd_amac_raw = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    gettimeofday(&t1, NULL);
+    args->num_results =
+        probe_simd_amac_raw(args->ht, &args->relS, chainedbuf_simd_amac_raw);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("---  SIMD AMAC RAW costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf_simd_amac_raw);
 //------------------------------------
 #ifdef JOIN_RESULT_MATERIALIZE
   args->threadresult->nresults = args->num_results;

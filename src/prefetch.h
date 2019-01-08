@@ -35,14 +35,16 @@
 typedef struct amac_state_t scalar_state_t;
 typedef struct StateSIMD StateSIMD;
 
-#define ScalarStateSize 24
-#define SIMDStateSize 5
-#define SEQ_DIS 24
+#define ScalarStateSize 30
+#define SIMDStateSize 6
+#define SEQ_DIS 30
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
 #define REPEAT_PROBE 2
 #define SLEEP_TIME 0
 #define PDIS 128
 #define VECTOR_SCALE 8
+#define DIR_PREFETCH 1
+#define KNL 0
 struct amac_state_t {
   int64_t tuple_id;
   bucket_t *b;
