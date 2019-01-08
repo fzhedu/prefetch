@@ -6,7 +6,6 @@ Makefile
 src/mchashjoins
 install-sh
 config.guess
-config.h.in*
 config.h.in~
 config.log
 config.status
