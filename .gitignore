@@ -24,3 +24,5 @@ src/.deps/
 depcomp
 ltmain.sh
 missing
+compile
+src/core*

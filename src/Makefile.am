@@ -50,7 +50,7 @@ endif
 # -mavx, -mtune=niagara2, -mcpu=ultrasparc -msse4.2
 AM_CFLAGS = -Wall -ansi -std=c11 -Wno-format -pedantic \
 	    -g  $(DEFINES) -w -fpermissive \
-	    -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512vl -mavx2 -mbmi2 -mavx
+	    -mavx512f -mavx512cd -mavx512bw -mavx512dq -mavx512pf -mavx2 -mbmi2 -mavx
 
 AM_LDFLAGS =
 CFLAGS = -O3

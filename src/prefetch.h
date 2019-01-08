@@ -45,6 +45,9 @@ typedef struct StateSIMD StateSIMD;
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
 #define KNL 0
+#if KNL
+#define _mm512_mullo_epi64(a, b) _mm512_mullo_epi32(a, b)
+#endif
 struct amac_state_t {
   int64_t tuple_id;
   bucket_t *b;
