@@ -171,7 +171,7 @@ int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
 ///////// step 1: load new tuples' address offsets
 // the offset should be within MAX_32INT_
 // the tail depends on the number of joins and tuples in each bucket
-#if !SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
@@ -358,7 +358,7 @@ int64_t probe_simd_amac_raw(hashtable_t *ht, relation_t *rel, void *output) {
 ///////// step 1: load new tuples' address offsets
 // the offset should be within MAX_32INT_
 // the tail depends on the number of joins and tuples in each bucket
-#if !SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
@@ -558,7 +558,7 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
 ///////// step 1: load new tuples' address offsets
 // the offset should be within MAX_32INT_
 // the tail depends on the number of joins and tuples in each bucket
-#if !SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
@@ -828,7 +828,7 @@ int64_t probe_simd_amac_compact1(hashtable_t *ht, relation_t *rel,
 ///////// step 1: load new tuples' address offsets
 // the offset should be within MAX_32INT_
 // the tail depends on the number of joins and tuples in each bucket
-#if !SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
@@ -924,7 +924,7 @@ int64_t probe_simd_amac_compact1(hashtable_t *ht, relation_t *rel,
 
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
-#if !SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)join_res) + PDIS), _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)join_res) + PDIS + 64), _MM_HINT_T0);
 //   _mm_prefetch((char *)(((void *)join_res) + PDIS + 128), _MM_HINT_T0);
@@ -1099,7 +1099,7 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
 ///////// step 1: load new tuples' address offsets
 // the offset should be within MAX_32INT_
 // the tail depends on the number of joins and tuples in each bucket
-#if !SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
@@ -1195,7 +1195,7 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
 
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
-#if !SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)join_res) + PDIS), _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)join_res) + PDIS + 64), _MM_HINT_T0);
 //   _mm_prefetch((char *)(((void *)join_res) + PDIS + 128), _MM_HINT_T0);
@@ -1374,7 +1374,7 @@ int64_t probe_simd_gp(hashtable_t *ht, relation_t *rel, void *output) {
 ///////// step 1: load new tuples' address offsets
 // the offset should be within MAX_32INT_
 // the tail depends on the number of joins and tuples in each bucket
-#if !SEQPREFETCH
+#if SEQPREFETCH
       _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                    _MM_HINT_T0);
       _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),

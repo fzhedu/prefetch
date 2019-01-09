@@ -47,6 +47,15 @@ AC_ARG_ENABLE(key8B,
 
 AM_CONDITIONAL([KEY_8B], [test "$enable_key8B" = "yes"])
 
+# Check for conditional compilation options
+# Use KNL?
+AC_ARG_ENABLE(knl,
+   [  --enable-knl  use knl?  [default=no]],
+   [enable_knl="$enableval"], 
+   [enable_knl="no"])
+
+AM_CONDITIONAL([KNL], [test "$enable_knl" = "yes"])
+
 # Do performance counter monitoring?
 AC_ARG_ENABLE(perfcounters,
    [  --enable-perfcounters  enable performance counter monitoring with Intel PCM  [default=no]],

@@ -6,7 +6,7 @@
 #include <numaif.h> /* get_mempolicy() */
 
 #include "cpu_mapping.h"
-
+#include "prefetch.h"
 /** \internal
  * @{
  */
