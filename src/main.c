@@ -97,7 +97,8 @@ handling in radix [default=no]
          -s --s-size=<S>    Number of tuples in probe relation S <S> [128000000]
          -x --r-seed=<x>    Seed value for generating relation R <x> [12345]
          -y --s-seed=<y>    Seed value for generating relation S <y> [54321]
-         -z --skew=<z>      Zipf skew parameter for probe relation S <z> [0.0]
+         -t --r-skew=<t>      Zipf skew parameter for probe relation R <t> [0.0]
+         -z --s-skew=<z>      Zipf skew parameter for probe relation S <z> [0.0]
          --non-unique       Use non-unique (duplicated) keys in input relations
          --full-range       Spread keys in relns. in full 32-bit integer range
          --basic-numa       Numa-localize relations to threads (Experimental)
@@ -280,7 +281,8 @@ struct param_t {
   uint64_t s_size;
   uint32_t r_seed;
   uint32_t s_seed;
-  double skew;
+  double r_skew;
+  double s_skew;
   int nonunique_keys; /* non-unique keys allowed? */
   int verbose;
   int fullrange_keys; /* keys covers full int range? */
@@ -339,7 +341,8 @@ int main(int argc, char **argv) {
   cmd_params.s_size = 128000000;
   cmd_params.r_seed = 12345;
   cmd_params.s_seed = 54321;
-  cmd_params.skew = 0.0;
+  cmd_params.r_skew = 0.0;
+  cmd_params.s_skew = 0.0;
   cmd_params.verbose = 0;
   cmd_params.perfconf = NULL;
   cmd_params.perfout = NULL;
@@ -358,10 +361,11 @@ int main(int argc, char **argv) {
 
   /* create relation R */
   fprintf(stdout,
-          "[INFO ] %s relation R with size = %.3lf MiB, #tuples = %llu : ",
+          "[INFO ] %s relation R with size = %.3lf MiB, #tuples = %llu, skew = "
+          "%.2lf : ",
           (cmd_params.loadfileS != NULL) ? ("Loading") : ("Creating"),
           (double)sizeof(tuple_t) * cmd_params.r_size / 1024.0 / 1024.0,
-          cmd_params.r_size);
+          cmd_params.r_size, cmd_params.r_skew);
   fflush(stdout);
 
   seed_generator(cmd_params.r_seed);
@@ -378,10 +382,10 @@ int main(int argc, char **argv) {
   } else if (cmd_params.nonunique_keys) {
     create_relation_nonunique(&relR, cmd_params.r_size, cmd_params.r_size);
   } else {
-    if (cmd_params.skew > 0) {
+    if (cmd_params.r_skew > 0) {
       /* S is skewed */
       create_relation_zipf(&relR, cmd_params.r_size, cmd_params.r_size,
-                           cmd_params.skew);
+                           cmd_params.r_skew);
     } else {
       // create_relation_pk(&relR, cmd_params.r_size);
       parallel_create_relation(&relR, cmd_params.r_size, nthreads,
@@ -392,10 +396,11 @@ int main(int argc, char **argv) {
 
   /* create relation S */
   fprintf(stdout,
-          "[INFO ] %s relation S with size = %.3lf MiB, #tuples = %lld : ",
+          "[INFO ] %s relation S with size = %.3lf MiB, #tuples = %lld, skew = "
+          "%.2lf : ",
           (cmd_params.loadfileS != NULL) ? ("Loading") : ("Creating"),
           (double)sizeof(tuple_t) * cmd_params.s_size / 1024.0 / 1024.0,
-          cmd_params.s_size);
+          cmd_params.s_size, cmd_params.s_skew);
   fflush(stdout);
 
   seed_generator(cmd_params.s_seed);
@@ -411,10 +416,10 @@ int main(int argc, char **argv) {
   } else {
     /* if r_size == s_size then equal-dataset, else non-equal dataset */
 
-    if (cmd_params.skew > 0) {
+    if (cmd_params.s_skew > 0) {
       /* S is skewed */
       create_relation_zipf(&relS, cmd_params.s_size, cmd_params.r_size,
-                           cmd_params.skew);
+                           cmd_params.s_skew);
     } else {
       /* S is uniform foreign key */
       // create_relation_fk(&relS, cmd_params.s_size, cmd_params.r_size);
@@ -462,7 +467,8 @@ void print_help(char *progname) {
        -s --s-size=<S>    Number of tuples in probe relation S <S> [128000000]\n\
        -x --r-seed=<x>    Seed value for generating relation R <x> [12345]    \n\
        -y --s-seed=<y>    Seed value for generating relation S <y> [54321]    \n\
-       -z --skew=<z>      Zipf skew parameter for probe relation S <z> [0.0]  \n\
+       -t --r-skew=<t>    Zipf skew parameter for probe relation R <t> [0.0]  \n\
+       -z --s-skew=<z>    Zipf skew parameter for probe relation S <z> [0.0]  \n\
        -R --r-file=<Rf>   The file to load build relation R from <Rf> [R.tbl] \n\
        -S --s-file=<Sf>   The file to load probe relation S from <Sf> [S.tbl] \n\
        --non-unique       Use non-unique (duplicated) keys in input relations \n\
@@ -522,14 +528,15 @@ void parse_args(int argc, char **argv, param_t *cmd_params) {
         {"perfout", required_argument, 0, 'o'},
         {"r-seed", required_argument, 0, 'x'},
         {"s-seed", required_argument, 0, 'y'},
-        {"skew", required_argument, 0, 'z'},
+        {"r-skew", required_argument, 0, 't'},
+        {"s-skew", required_argument, 0, 'z'},
         {"r-file", required_argument, 0, 'R'},
         {"s-file", required_argument, 0, 'S'},
         {0, 0, 0, 0}};
     /* getopt_long stores the option index here. */
     int option_index = 0;
 
-    c = getopt_long(argc, argv, "a:n:p:r:s:o:x:y:z:R:S:hv", long_options,
+    c = getopt_long(argc, argv, "a:n:p:r:s:o:x:y:t:z:R:S:hv", long_options,
                     &option_index);
 
     /* Detect the end of the options. */
@@ -602,8 +609,12 @@ void parse_args(int argc, char **argv, param_t *cmd_params) {
         cmd_params->s_seed = atoi(optarg);
         break;
 
+      case 't':
+        cmd_params->r_skew = atof(optarg);
+        break;
+
       case 'z':
-        cmd_params->skew = atof(optarg);
+        cmd_params->s_skew = atof(optarg);
         break;
 
       case 'R':
