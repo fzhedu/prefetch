@@ -219,24 +219,24 @@ void destroy_hashtable(hashtable_t *ht) {
  *
  * @param ht pointer to hashtable
  */
-
+#define LENGTH 1024
 void print_hashtable(hashtable_t *const ht) {
-  uint32_t num[128], max = 0;
+  uint32_t num[LENGTH], max = 0;
   bucket_t *curr = NULL;
   memset(num, 0, sizeof(num));
   for (uint32_t i = 0; i < ht->num_buckets; ++i) {
     curr = ht->buckets + i;
-    ++num[curr->lenth];
+    ++num[curr->lenth > LENGTH ? LENGTH - 1 : curr->lenth];
     if (curr->lenth > max) {
       max = curr->lenth;
     }
   }
-  assert(max < 128);
+  // assert(max < LENGTH);
   printf("max = %d\t", max);
   puts("======the statics of a hash table ====");
-  for (uint32_t i = 0; i <= max; ++i) {
+  for (uint32_t i = 0; i < LENGTH; ++i) {
     if (num[i] > 0) {
-      printf("len= %2d, num= %3d\n", i, num[i]);
+      printf("len= %5d, num= %10d\n", i, num[i]);
     }
   }
   puts("==END=the statics of a hash table ====");
