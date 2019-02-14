@@ -248,7 +248,7 @@ cpu-mapping.txt
 #include <stdlib.h>   /* exit */
 #include <string.h>   /* strcmp */
 #include <limits.h>   /* INT_MAX */
-
+#include <math.h>
 #include "no_partitioning_join.h" /* no partitioning joins: NPO, NPO_st */
 #include "parallel_radix_join.h"  /* parallel radix joins: RJ, PRO, PRH, PRHO \
                                      */
@@ -308,6 +308,7 @@ static struct algo_t algos[] = {{"PRO", PRO},
                                 {"PRHO", PRHO},
                                 {"NPO", NPO},
                                 {"NPO_st", NPO_st}, /* NPO single threaded */
+                                {"GEN", NPO},
                                 {{0}, 0}};
 
 /* command line handling functions */
@@ -428,27 +429,45 @@ int main(int argc, char **argv) {
     }
   }
   printf("OK \n");
+#define STRSIZE 64
+  if (strcmp(cmd_params.algo->name, "GEN") == 0) {
+    char str_skew_r[STRSIZE] = "", str_size_r[STRSIZE] = "",
+         str_skew_s[STRSIZE] = "", str_size_s[STRSIZE] = "";
+    char r_skew[STRSIZE] = "r_skew=", str_size[STRSIZE] = "_size=",
+         s_skew[STRSIZE] = "s_skew=";
+    gcvt(cmd_params.r_skew, 8, str_skew_r);
+    gcvt(cmd_params.r_size, 8, str_size_r);
+    char r_file_name[STRSIZE], s_file_name[STRSIZE];
+    strcpy(r_file_name,
+           strcat(strcat(strcat(r_skew, str_skew_r), str_size), str_size_r));
+    gcvt(cmd_params.s_skew, 8, str_skew_s);
+    gcvt(cmd_params.s_size, 8, str_size_s);
+    strcpy(s_file_name,
+           strcat(strcat(strcat(s_skew, str_skew_s), str_size), str_size_s));
+    printf("r_file_name = %s, s_file_name = %s\n", r_file_name, s_file_name);
+    write_relation(&relR, r_file_name);
+    write_relation(&relS, s_file_name);
 
-  /* Run the selected join algorithm */
-  printf("[INFO ] Running join algorithm %s ...\n", cmd_params.algo->name);
+  } else {
+    /* Run the selected join algorithm */
+    printf("[INFO ] Running join algorithm %s ...\n", cmd_params.algo->name);
 
-  results = cmd_params.algo->joinAlgo(&relR, &relS, cmd_params.nthreads);
+    results = cmd_params.algo->joinAlgo(&relR, &relS, cmd_params.nthreads);
 
-  printf("[INFO ] Results = %llu. DONE.\n", results->totalresults);
+    printf("[INFO ] Results = %llu. DONE.\n", results->totalresults);
 
 #if (defined(PERSIST_RELATIONS) && defined(JOIN_RESULT_MATERIALIZE))
-  printf("[INFO ] Persisting the join result to \"Out.tbl\" ...\n");
-  write_result_relation(results, "Out.tbl");
+    printf("[INFO ] Persisting the join result to \"Out.tbl\" ...\n");
+    write_result_relation(results, "Out.tbl");
 #endif
-
+    free(results);
+#ifdef JOIN_RESULT_MATERIALIZE
+    free(results->resultlist);
+#endif
+  }
   /* clean-up */
   delete_relation(&relR);
   delete_relation(&relS);
-  free(results);
-#ifdef JOIN_RESULT_MATERIALIZE
-  free(results->resultlist);
-#endif
-
   return 0;
 }
 

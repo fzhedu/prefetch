@@ -26,3 +26,5 @@ ltmain.sh
 missing
 compile
 src/core*
+r_skew*
+s_skew*
