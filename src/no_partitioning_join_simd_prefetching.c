@@ -762,7 +762,7 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
   }
   return matches;
 }
-int64_t probe_simd_amac_compact1(hashtable_t *ht, relation_t *rel,
+int64_t smv_probe(hashtable_t *ht, relation_t *rel,
                                  void *output) {
   int64_t matches = 0;
   int32_t new_add = 0, k = 0, done = 0, num, num_temp;

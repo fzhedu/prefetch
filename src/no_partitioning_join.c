@@ -222,6 +222,7 @@ void destroy_hashtable(hashtable_t *ht) {
 #define LENGTH 1024
 void print_hashtable(hashtable_t *const ht) {
   uint32_t num[LENGTH], max = 0;
+  uint64_t total = 0;
   bucket_t *curr = NULL;
   memset(num, 0, sizeof(num));
   for (uint32_t i = 0; i < ht->num_buckets; ++i) {
@@ -230,9 +231,10 @@ void print_hashtable(hashtable_t *const ht) {
     if (curr->lenth > max) {
       max = curr->lenth;
     }
+    total += curr->lenth;
   }
   // assert(max < LENGTH);
-  printf("max = %d\t", max);
+  printf("max = %d\t total = %lld\n", max, total);
   puts("======the statics of a hash table ====");
   for (uint32_t i = 0; i < LENGTH; ++i) {
     if (num[i] > 0) {
@@ -768,12 +770,11 @@ void *npo_thread(void *param) {
     stopTimer(&args->timer2);
   }
 #endif
-  ////////// raw prefetch
+  ////////// compact, do two branches in the integration
 
-  chainedtuplebuffer_t *chainedbuf_compact = chainedtuplebuffer_init();
+  /*chainedtuplebuffer_t *chainedbuf_compact = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
-    /* probe for matching tuples from the assigned part of relS */
     gettimeofday(&t1, NULL);
     args->num_results =
         probe_simd_amac_compact2(args->ht, &args->relS, chainedbuf_compact);
@@ -798,13 +799,13 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
+  */  //
   chainedtuplebuffer_t *chainedbuf_compact1 = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     /* probe for matching tuples from the assigned part of relS */
     gettimeofday(&t1, NULL);
-    args->num_results =
-        probe_simd_amac_compact1(args->ht, &args->relS, chainedbuf_compact1);
+    args->num_results = smv_probe(args->ht, &args->relS, chainedbuf_compact1);
     lock(&g_lock);
     total_num += args->num_results;
     unlock(&g_lock);
@@ -813,8 +814,7 @@ void *npo_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("---- COMPACT1 probe costs time (ms) = %lf\n",
-             deltaT * 1.0 / 1000);
+      printf("---- SMV probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }
@@ -826,6 +826,7 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
+  // raw probe in scalar
   chainedtuplebuffer_t *chainedbuf = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
@@ -853,7 +854,7 @@ void *npo_thread(void *param) {
     puts("+++++sleep end  +++++");
   }
   ////////////////raw GP probe
-  chainedtuplebuffer_t *chainedbuf_rp = chainedtuplebuffer_init();
+  /*  chainedtuplebuffer_t *chainedbuf_rp = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     gettimeofday(&t1, NULL);
@@ -879,7 +880,8 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-  ////////////////GP probe
+  */  ////////////////GP
+  /// probe
   chainedtuplebuffer_t *chainedbuf_gp = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
@@ -932,7 +934,7 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-  ////////////////SIMD probe
+  ////////////////SIMD probe full vectorization
   chainedtuplebuffer_t *chainedbuf_simd = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
