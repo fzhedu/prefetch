@@ -34,9 +34,12 @@
 #include "npj_types.h"
 typedef struct amac_state_t scalar_state_t;
 typedef struct StateSIMD StateSIMD;
+#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
+#define LIKELY(expr) __builtin_expect(!!(expr), 1)
 
+#define LOAD_FACTOR 4
 #define ScalarStateSize 30
-#define SIMDStateSize 4
+#define SIMDStateSize 6
 #define SEQ_DIS 30
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
 #define REPEAT_PROBE 2
@@ -45,7 +48,7 @@ typedef struct StateSIMD StateSIMD;
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
 #define SEQPREFETCH 1
-#define _MM_HINT_T0 _MM_HINT_NTA
+#define _MM_HINT_T0 0
 #if KNL
 #define _mm512_mullo_epi64(a, b) _mm512_mullo_epi32(a, b)
 #endif

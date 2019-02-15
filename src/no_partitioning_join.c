@@ -182,7 +182,7 @@ void allocate_hashtable(hashtable_t **ppht, uint32_t nbuckets) {
   ht = (hashtable_t *)malloc(sizeof(hashtable_t));
   ht->num_buckets = nbuckets;
   NEXT_POW_2((ht->num_buckets));
-  ht->num_buckets = ht->num_buckets / 4;
+  ht->num_buckets = ht->num_buckets / LOAD_FACTOR;
 
   /* allocate hashtable buckets cache line aligned */
   if (posix_memalign((void **)&ht->buckets, CACHE_LINE_SIZE,
@@ -220,15 +220,16 @@ void destroy_hashtable(hashtable_t *ht) {
  *
  * @param ht pointer to hashtable
  */
-#define LENGTH 1024
+#define LENGTH 100
 void print_hashtable(hashtable_t *const ht) {
-  uint32_t num[LENGTH], max = 0;
+  uint32_t num[LENGTH], max = 0, len;
   uint64_t total = 0;
   bucket_t *curr = NULL;
   memset(num, 0, sizeof(num));
   for (uint32_t i = 0; i < ht->num_buckets; ++i) {
     curr = ht->buckets + i;
-    ++num[curr->lenth > LENGTH ? LENGTH - 1 : curr->lenth];
+    len = (curr->lenth + 9) / 10;
+    ++num[(len > LENGTH ? LENGTH - 1 : len)];
     if (curr->lenth > max) {
       max = curr->lenth;
     }
@@ -239,7 +240,7 @@ void print_hashtable(hashtable_t *const ht) {
   puts("======the statics of a hash table ====");
   for (uint32_t i = 0; i < LENGTH; ++i) {
     if (num[i] > 0) {
-      printf("len= %5d, num= %10d\n", i, num[i]);
+      printf("len= %5d, num= %10d\n", i * 10, num[i]);
     }
   }
   puts("==END=the statics of a hash table ====");
@@ -504,8 +505,9 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
           ++k;
           break;
         }
+#if SEQPREFETCH
         _mm_prefetch((char *)(rel->tuples + cur + SEQ_DIS), _MM_HINT_T0);
-
+#endif
         intkey_t idx = HASH(rel->tuples[cur].key, hashmask, skipbits);
         state[k].b = ht->buckets + idx;
         //__builtin_prefetch(state[k].b, 0, 1);
@@ -828,33 +830,7 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-  // raw probe in scalar
-  chainedtuplebuffer_t *chainedbuf = chainedtuplebuffer_init();
-  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
-    BARRIER_ARRIVE(args->barrier, rv);
-    /* probe for matching tuples from the assigned part of relS */
-    gettimeofday(&t1, NULL);
-    args->num_results = probe_hashtable(args->ht, &args->relS, chainedbuf);
-    lock(&g_lock);
-    total_num += args->num_results;
-    unlock(&g_lock);
-    BARRIER_ARRIVE(args->barrier, rv);
-    if (args->tid == 0) {
-      printf("total result num = %lld\t", total_num);
-      gettimeofday(&t2, NULL);
-      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("-------- RAW probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
-      total_num = 0;
-    }
-  }
-  chainedtuplebuffer_free(chainedbuf);
-  if (args->tid == 0) {
-    puts("+++++sleep begin+++++");
-  }
-  sleep(SLEEP_TIME);
-  if (args->tid == 0) {
-    puts("+++++sleep end  +++++");
-  }
+
   ////////////////raw GP probe
   /*  chainedtuplebuffer_t *chainedbuf_rp = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
@@ -937,33 +913,7 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-  ////////////////SIMD probe full vectorization
-  chainedtuplebuffer_t *chainedbuf_simd = chainedtuplebuffer_init();
-  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
-    BARRIER_ARRIVE(args->barrier, rv);
-    gettimeofday(&t1, NULL);
-    args->num_results = probe_simd(args->ht, &args->relS, chainedbuf_simd);
-    lock(&g_lock);
-    total_num += args->num_results;
-    unlock(&g_lock);
-    BARRIER_ARRIVE(args->barrier, rv);
-    if (args->tid == 0) {
-      printf("total result num = %lld\t", total_num);
-      gettimeofday(&t2, NULL);
-      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("--------SIMD probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
-      total_num = 0;
-    }
-  }
-  chainedtuplebuffer_free(chainedbuf_simd);
-  //////////////////
-  if (args->tid == 0) {
-    puts("+++++sleep begin+++++");
-  }
-  sleep(SLEEP_TIME);
-  if (args->tid == 0) {
-    puts("+++++sleep end  +++++");
-  }
+
   ////////////////SIMD GP probe
   /*
   chainedtuplebuffer_t *chainedbuf_simd_gp = chainedtuplebuffer_init();
@@ -1042,6 +992,61 @@ void *npo_thread(void *param) {
     }
   }
   chainedtuplebuffer_free(chainedbuf_simd_amac_raw);
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+  ////////////////SIMD probe full vectorization
+  chainedtuplebuffer_t *chainedbuf_simd = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    gettimeofday(&t1, NULL);
+    args->num_results = probe_simd(args->ht, &args->relS, chainedbuf_simd);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("--------SIMD probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf_simd);
+  //////////////////
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+  //////// raw probe in scalar
+  chainedtuplebuffer_t *chainedbuf = chainedtuplebuffer_init();
+  for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
+    BARRIER_ARRIVE(args->barrier, rv);
+    /* probe for matching tuples from the assigned part of relS */
+    gettimeofday(&t1, NULL);
+    args->num_results = probe_hashtable(args->ht, &args->relS, chainedbuf);
+    lock(&g_lock);
+    total_num += args->num_results;
+    unlock(&g_lock);
+    BARRIER_ARRIVE(args->barrier, rv);
+    if (args->tid == 0) {
+      printf("total result num = %lld\t", total_num);
+      gettimeofday(&t2, NULL);
+      deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
+      printf("-------- RAW probe costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      total_num = 0;
+    }
+  }
+  chainedtuplebuffer_free(chainedbuf);
+
 //------------------------------------
 #ifdef JOIN_RESULT_MATERIALIZE
   args->threadresult->nresults = args->num_results;

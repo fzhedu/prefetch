@@ -177,12 +177,12 @@ int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
                      _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-                     _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
+//             _MM_HINT_T0);
 #endif
         // directly use cur, instead of cur_offset to control the offset to rel.
         // In this case, using step = 16 to gather data, but step is larger
@@ -344,12 +344,12 @@ int64_t probe_simd_amac_raw(hashtable_t *ht, relation_t *rel, void *output) {
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
                      _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-                     _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
+//             _MM_HINT_T0);
 #endif
         // directly use cur, instead of cur_offset to control the offset to rel.
         // In this case, using step = 16 to gather data, but step is larger
@@ -544,12 +544,12 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
                      _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-                     _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
+//             _MM_HINT_T0);
 #endif
         // directly use cur, instead of cur_offset to control the offset to rel.
         // In this case, using step = 16 to gather data, but step is larger
@@ -794,7 +794,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
         ++k;
         continue;
       }
-      if (done >= SIMDStateSize) {
+      if ((done >= SIMDStateSize)) {
         if (state[SIMDStateSize].m_have_tuple > 0) {
           k = SIMDStateSize;
           state[SIMDStateSize].stage = 0;
@@ -815,10 +815,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
                      _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-                     _MM_HINT_T0);
+
 #endif
         // directly use cur, instead of cur_offset to control the offset to rel.
         // In this case, using step = 16 to gather data, but step is larger
@@ -904,19 +901,10 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
 
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
-        //#if SEQPREFETCH
-        //        _mm_prefetch((char *)(((void *)join_res) + PDIS),
-        //        _MM_HINT_T0);
-        //        _mm_prefetch((char *)(((void *)join_res) + PDIS + 64),
-        //        _MM_HINT_T0);
-        ////   _mm_prefetch((char *)(((void *)join_res) + PDIS + 128),
-        ///_MM_HINT_T0);
-        //// _mm_prefetch((char *)(((void *)join_res) + PDIS + 192),
-        ///_MM_HINT_T0);
-        ////  _mm_prefetch((char *)(((void *)join_res) + PDIS + 256),
-        ///_MM_HINT_T0);
-        //
-        //#endif
+#if 0  // SEQPREFETCH
+        _mm_prefetch((char *)(((void *)join_res) + PDIS), _MM_HINT_T0);
+        _mm_prefetch((char *)(((void *)join_res) + PDIS + 64), _MM_HINT_T0);
+#endif
         v_write_index =
             _mm512_mask_expand_epi64(v_zero512, m_match, v_base_offset);
         _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,
@@ -925,9 +913,8 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
         _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,
                                      v_right_payload, 1);
         num = _mm_popcnt_u32(state[k].m_have_tuple);
-#if 0
+#if 1
         if (num == VECTOR_SCALE) {
-          state[k].stage = 0;
 #if KNL
           _mm512_mask_prefetch_i64gather_pd(
               state[k].ht_off, state[k].m_have_tuple, 0, 1, _MM_HINT_T0);
@@ -938,78 +925,80 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
           }
 #endif
         } else
-#else
-        if (done < SIMDStateSize)
 #endif
         {
-          num_temp = _mm_popcnt_u32(state[SIMDStateSize].m_have_tuple);
-          if (num + num_temp < VECTOR_SCALE) {
-            // compress v
-            state[k].ht_off = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
-                                                          state[k].ht_off);
-            state[k].key = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
-                                                       state[k].key);
-            state[k].pb_off = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
-                                                          state[k].pb_off);
-            // expand v -> temp
-            state[SIMDStateSize].ht_off = _mm512_mask_expand_epi64(
-                state[SIMDStateSize].ht_off,
-                _mm512_knot(state[SIMDStateSize].m_have_tuple),
-                state[k].ht_off);
-            state[SIMDStateSize].key = _mm512_mask_expand_epi64(
-                state[SIMDStateSize].key,
-                _mm512_knot(state[SIMDStateSize].m_have_tuple), state[k].key);
-            state[SIMDStateSize].pb_off = _mm512_mask_expand_epi64(
-                state[SIMDStateSize].pb_off,
-                _mm512_knot(state[SIMDStateSize].m_have_tuple),
-                state[k].pb_off);
-            state[SIMDStateSize].m_have_tuple = mask[num + num_temp];
-            state[k].m_have_tuple = 0;
-            state[k].stage = 1;
+          if ((done < SIMDStateSize)) {
+            num_temp = _mm_popcnt_u32(state[SIMDStateSize].m_have_tuple);
+            if (num + num_temp < VECTOR_SCALE) {
+              // compress v
+              state[k].ht_off = _mm512_maskz_compress_epi64(
+                  state[k].m_have_tuple, state[k].ht_off);
+              state[k].key = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
+                                                         state[k].key);
+              state[k].pb_off = _mm512_maskz_compress_epi64(
+                  state[k].m_have_tuple, state[k].pb_off);
+              // expand v -> temp
+              state[SIMDStateSize].ht_off = _mm512_mask_expand_epi64(
+                  state[SIMDStateSize].ht_off,
+                  _mm512_knot(state[SIMDStateSize].m_have_tuple),
+                  state[k].ht_off);
+              state[SIMDStateSize].key = _mm512_mask_expand_epi64(
+                  state[SIMDStateSize].key,
+                  _mm512_knot(state[SIMDStateSize].m_have_tuple), state[k].key);
+              state[SIMDStateSize].pb_off = _mm512_mask_expand_epi64(
+                  state[SIMDStateSize].pb_off,
+                  _mm512_knot(state[SIMDStateSize].m_have_tuple),
+                  state[k].pb_off);
+              state[SIMDStateSize].m_have_tuple = mask[num + num_temp];
+              state[k].m_have_tuple = 0;
+              state[k].stage = 1;
 
-          } else {
-            // expand temp -> v
-            state[k].ht_off = _mm512_mask_expand_epi64(
-                state[k].ht_off, _mm512_knot(state[k].m_have_tuple),
-                state[SIMDStateSize].ht_off);
-            state[k].key = _mm512_mask_expand_epi64(
-                state[k].key, _mm512_knot(state[k].m_have_tuple),
-                state[SIMDStateSize].key);
-            state[k].pb_off = _mm512_mask_expand_epi64(
-                state[k].pb_off, _mm512_knot(state[k].m_have_tuple),
-                state[SIMDStateSize].pb_off);
-            // compress temp
-            state[SIMDStateSize].m_have_tuple =
-                _mm512_kand(state[SIMDStateSize].m_have_tuple,
-                            _mm512_knot(mask[VECTOR_SCALE - num]));
-            state[SIMDStateSize].ht_off = _mm512_maskz_compress_epi64(
-                state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].ht_off);
-            state[SIMDStateSize].key = _mm512_maskz_compress_epi64(
-                state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].key);
-            state[SIMDStateSize].pb_off = _mm512_maskz_compress_epi64(
-                state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].pb_off);
-            state[k].m_have_tuple = mask[VECTOR_SCALE];
-            state[SIMDStateSize].m_have_tuple =
-                (state[SIMDStateSize].m_have_tuple >> (VECTOR_SCALE - num));
-            state[k].stage = 0;
+            } else {
+              // expand temp -> v
+              state[k].ht_off = _mm512_mask_expand_epi64(
+                  state[k].ht_off, _mm512_knot(state[k].m_have_tuple),
+                  state[SIMDStateSize].ht_off);
+              state[k].key = _mm512_mask_expand_epi64(
+                  state[k].key, _mm512_knot(state[k].m_have_tuple),
+                  state[SIMDStateSize].key);
+              state[k].pb_off = _mm512_mask_expand_epi64(
+                  state[k].pb_off, _mm512_knot(state[k].m_have_tuple),
+                  state[SIMDStateSize].pb_off);
+              // compress temp
+              state[SIMDStateSize].m_have_tuple =
+                  _mm512_kand(state[SIMDStateSize].m_have_tuple,
+                              _mm512_knot(mask[VECTOR_SCALE - num]));
+              state[SIMDStateSize].ht_off =
+                  _mm512_maskz_compress_epi64(state[SIMDStateSize].m_have_tuple,
+                                              state[SIMDStateSize].ht_off);
+              state[SIMDStateSize].key = _mm512_maskz_compress_epi64(
+                  state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].key);
+              state[SIMDStateSize].pb_off =
+                  _mm512_maskz_compress_epi64(state[SIMDStateSize].m_have_tuple,
+                                              state[SIMDStateSize].pb_off);
+              state[k].m_have_tuple = mask[VECTOR_SCALE];
+              state[SIMDStateSize].m_have_tuple =
+                  (state[SIMDStateSize].m_have_tuple >> (VECTOR_SCALE - num));
+              state[k].stage = 0;
 #if KNL
-            _mm512_mask_prefetch_i64gather_pd(
-                state[k].ht_off, state[k].m_have_tuple, 0, 1, _MM_HINT_T0);
+              _mm512_mask_prefetch_i64gather_pd(
+                  state[k].ht_off, state[k].m_have_tuple, 0, 1, _MM_HINT_T0);
 #elif DIR_PREFETCH
-            ht_pos = (uint64_t *)&state[k].ht_off;
-            for (int i = 0; i < VECTOR_SCALE; ++i) {
-              _mm_prefetch((char *)(ht_pos[i]), _MM_HINT_T0);
-            }
-#else
-            m_have_tuple = state[k].m_have_tuple;
-            ht_pos = (uint64_t *)&state[k].ht_off;
-            for (int i = 0; (i < VECTOR_SCALE) & (m_have_tuple);
-                 ++i, (m_have_tuple >> 1)) {
-              if (m_have_tuple & 1) {
+              ht_pos = (uint64_t *)&state[k].ht_off;
+              for (int i = 0; i < VECTOR_SCALE; ++i) {
                 _mm_prefetch((char *)(ht_pos[i]), _MM_HINT_T0);
               }
-            }
+#else
+              m_have_tuple = state[k].m_have_tuple;
+              ht_pos = (uint64_t *)&state[k].ht_off;
+              for (int i = 0; (i < VECTOR_SCALE) & (m_have_tuple);
+                   ++i, (m_have_tuple >> 1)) {
+                if (m_have_tuple & 1) {
+                  _mm_prefetch((char *)(ht_pos[i]), _MM_HINT_T0);
+                }
+              }
 #endif
+            }
           }
         }
       } break;
@@ -1089,14 +1078,15 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
                      _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-                     _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-                     _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
+//             _MM_HINT_T0);
 #endif
-        // directly use cur, instead of cur_offset to control the offset to rel.
+        // directly use cur, instead of cur_offset to control the offset to
+        // rel.
         // In this case, using step = 16 to gather data, but step is larger
         // than the scale 1,2,4 or 8
         v_offset =
@@ -1369,12 +1359,12 @@ int64_t probe_simd_gp(hashtable_t *ht, relation_t *rel, void *output) {
                    _MM_HINT_T0);
       _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
                    _MM_HINT_T0);
-      _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
-                   _MM_HINT_T0);
-      _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-                   _MM_HINT_T0);
-      _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-                   _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
+//             _MM_HINT_T0);
+//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
+//             _MM_HINT_T0);
 #endif
       // directly use cur, instead of cur_offset to control the offset to rel.
       // In this case, using step = 16 to gather data, but step is larger
