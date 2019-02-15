@@ -16,7 +16,7 @@
 
 #include "types.h"
 
-#define CHAINEDBUFF_NUMTUPLESPERBUF (1024 * 1024 * 1024)
+#define CHAINEDBUFF_NUMTUPLESPERBUF (1024 * 1024)
 
 /** If rid-pairs are coming from a sort-merge join then 1, otherwise for hash
     joins it is always 0 since output is not sorted. */
@@ -117,8 +117,11 @@ static chainedtuplebuffer_t *chainedtuplebuffer_init(void) {
       (chainedtuplebuffer_t *)malloc(sizeof(chainedtuplebuffer_t));
   tuplebuffer_t *newbuf = (tuplebuffer_t *)malloc(sizeof(tuplebuffer_t));
 
-  newbuf->tuples =
-      (tuple_t *)malloc(sizeof(tuple_t) * CHAINEDBUFF_NUMTUPLESPERBUF);
+  if (posix_memalign((void **)&(newbuf->tuples), CACHE_LINE_SIZE,
+                     sizeof(tuple_t) * CHAINEDBUFF_NUMTUPLESPERBUF)) {
+    perror("Aligned allocation failed!\n");
+    exit(EXIT_FAILURE);
+  }
   newbuf->next = NULL;
 
   newcb->buf = newcb->readcursor = newcb->writecursor = newbuf;

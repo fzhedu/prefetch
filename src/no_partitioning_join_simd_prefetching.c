@@ -154,7 +154,7 @@ int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
     state[i].stage = 1;
     state[i].m_have_tuple = 0;
     state[i].ht_off = _mm512_set1_epi64(0);
-    state[i].pb_off = _mm512_set1_epi64(0);
+    state[i].tb_off = _mm512_set1_epi64(0);
     state[i].key = _mm512_set1_epi64(0);
   }
   for (uint64_t cur = 0; (cur < rel->num_tuples) || (done < SIMDStateSize);) {
@@ -177,32 +177,28 @@ int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
                      _MM_HINT_T0);
-//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
-//             _MM_HINT_T0);
-//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-//             _MM_HINT_T0);
-//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-//             _MM_HINT_T0);
+        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
+                     _MM_HINT_T0);
 #endif
         // directly use cur, instead of cur_offset to control the offset to rel.
         // In this case, using step = 16 to gather data, but step is larger
         // than the scale 1,2,4 or 8
         v_offset =
             _mm512_add_epi64(_mm512_set1_epi64(cur_offset), v_base_offset);
-        state[k].pb_off = _mm512_mask_expand_epi64(
-            state[k].pb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
+        state[k].tb_off = _mm512_mask_expand_epi64(
+            state[k].tb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
         // count the number of empty tuples
         m_new_cells = _mm512_knot(state[k].m_have_tuple);
         new_add = _mm_popcnt_u32(m_new_cells);
         cur_offset = cur_offset + base_off[new_add];
         cur = cur + new_add;
         state[k].m_have_tuple =
-            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].pb_off);
+            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].tb_off);
         ///// step 2: load new cells from right tuples;
         m_new_cells = _mm512_kand(m_new_cells, state[k].m_have_tuple);
         // maybe need offset within a tuple
         state[k].key = _mm512_mask_i64gather_epi64(state[k].key, m_new_cells,
-                                                   state[k].pb_off,
+                                                   state[k].tb_off,
                                                    ((void *)rel->tuples), 1);
         ///// step 3: load new values from hash tables;
         // hash the cell values
@@ -253,7 +249,7 @@ int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
         // gather payloads
         v_left_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
-            _mm512_add_epi64(state[k].pb_off, v_word_size),
+            _mm512_add_epi64(state[k].tb_off, v_word_size),
             ((void *)rel->tuples), 1);
         v_right_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
@@ -268,6 +264,7 @@ int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
 
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
+
         v_write_index =
             _mm512_mask_expand_epi64(v_zero512, m_match, v_base_offset);
         _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,
@@ -321,7 +318,7 @@ int64_t probe_simd_amac_raw(hashtable_t *ht, relation_t *rel, void *output) {
     state[i].stage = 1;
     state[i].m_have_tuple = 0;
     state[i].ht_off = _mm512_set1_epi64(0);
-    state[i].pb_off = _mm512_set1_epi64(0);
+    state[i].tb_off = _mm512_set1_epi64(0);
     state[i].key = _mm512_set1_epi64(0);
   }
   for (uint64_t cur = 0; (cur < rel->num_tuples) || (done < SIMDStateSize);) {
@@ -344,32 +341,29 @@ int64_t probe_simd_amac_raw(hashtable_t *ht, relation_t *rel, void *output) {
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
                      _MM_HINT_T0);
-//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
-//             _MM_HINT_T0);
-//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 192),
-//             _MM_HINT_T0);
-//_mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
-//             _MM_HINT_T0);
+        _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
+                     _MM_HINT_T0);
+
 #endif
         // directly use cur, instead of cur_offset to control the offset to rel.
         // In this case, using step = 16 to gather data, but step is larger
         // than the scale 1,2,4 or 8
         v_offset =
             _mm512_add_epi64(_mm512_set1_epi64(cur_offset), v_base_offset);
-        state[k].pb_off = _mm512_mask_expand_epi64(
-            state[k].pb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
+        state[k].tb_off = _mm512_mask_expand_epi64(
+            state[k].tb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
         // count the number of empty tuples
         m_new_cells = _mm512_knot(state[k].m_have_tuple);
         new_add = _mm_popcnt_u32(m_new_cells);
         cur_offset = cur_offset + base_off[new_add];
         cur = cur + new_add;
         state[k].m_have_tuple =
-            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].pb_off);
+            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].tb_off);
         ///// step 2: load new cells from right tuples;
         m_new_cells = _mm512_kand(m_new_cells, state[k].m_have_tuple);
         // maybe need offset within a tuple
         state[k].key = _mm512_mask_i64gather_epi64(state[k].key, m_new_cells,
-                                                   state[k].pb_off,
+                                                   state[k].tb_off,
                                                    ((void *)rel->tuples), 1);
         ///// step 3: load new values from hash tables;
         // hash the cell values
@@ -421,7 +415,7 @@ int64_t probe_simd_amac_raw(hashtable_t *ht, relation_t *rel, void *output) {
         // gather payloads
         v_left_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
-            _mm512_add_epi64(state[k].pb_off, v_word_size),
+            _mm512_add_epi64(state[k].tb_off, v_word_size),
             ((void *)rel->tuples), 1);
         v_right_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
@@ -513,7 +507,7 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
     state[i].stage = 1;
     state[i].m_have_tuple = 0;
     state[i].ht_off = _mm512_set1_epi64(0);
-    state[i].pb_off = _mm512_set1_epi64(0);
+    state[i].tb_off = _mm512_set1_epi64(0);
     state[i].key = _mm512_set1_epi64(0);
   }
   for (uint64_t cur = 0; 1;) {
@@ -556,20 +550,20 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
         // than the scale 1,2,4 or 8
         v_offset =
             _mm512_add_epi64(_mm512_set1_epi64(cur_offset), v_base_offset);
-        state[k].pb_off = _mm512_mask_expand_epi64(
-            state[k].pb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
+        state[k].tb_off = _mm512_mask_expand_epi64(
+            state[k].tb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
         // count the number of empty tuples
         m_new_cells = _mm512_knot(state[k].m_have_tuple);
         new_add = _mm_popcnt_u32(m_new_cells);
         cur_offset = cur_offset + base_off[new_add];
         cur = cur + new_add;
         state[k].m_have_tuple =
-            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].pb_off);
+            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].tb_off);
         ///// step 2: load new cells from right tuples;
         m_new_cells = _mm512_kand(m_new_cells, state[k].m_have_tuple);
         // maybe need offset within a tuple
         state[k].key = _mm512_mask_i64gather_epi64(state[k].key, m_new_cells,
-                                                   state[k].pb_off,
+                                                   state[k].tb_off,
                                                    ((void *)rel->tuples), 1);
         ///// step 3: load new values from hash tables;
         // hash the cell values
@@ -620,7 +614,7 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
         // gather payloads
         v_left_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
-            _mm512_add_epi64(state[k].pb_off, v_word_size),
+            _mm512_add_epi64(state[k].tb_off, v_word_size),
             ((void *)rel->tuples), 1);
         v_right_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
@@ -677,8 +671,8 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
                                                         state[k].ht_off);
           state[k].key =
               _mm512_maskz_compress_epi64(state[k].m_have_tuple, state[k].key);
-          state[k].pb_off = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
-                                                        state[k].pb_off);
+          state[k].tb_off = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
+                                                        state[k].tb_off);
           // expand v -> temp
           state[SIMDStateSize].ht_off = _mm512_mask_expand_epi64(
               state[SIMDStateSize].ht_off,
@@ -686,9 +680,9 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
           state[SIMDStateSize].key = _mm512_mask_expand_epi64(
               state[SIMDStateSize].key,
               _mm512_knot(state[SIMDStateSize].m_have_tuple), state[k].key);
-          state[SIMDStateSize].pb_off = _mm512_mask_expand_epi64(
-              state[SIMDStateSize].pb_off,
-              _mm512_knot(state[SIMDStateSize].m_have_tuple), state[k].pb_off);
+          state[SIMDStateSize].tb_off = _mm512_mask_expand_epi64(
+              state[SIMDStateSize].tb_off,
+              _mm512_knot(state[SIMDStateSize].m_have_tuple), state[k].tb_off);
           state[SIMDStateSize].m_have_tuple = mask[num + num_temp];
           state[k].m_have_tuple = 0;
           state[k].stage = 1;
@@ -701,9 +695,9 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
           state[k].key = _mm512_mask_expand_epi64(
               state[k].key, _mm512_knot(state[k].m_have_tuple),
               state[SIMDStateSize].key);
-          state[k].pb_off = _mm512_mask_expand_epi64(
-              state[k].pb_off, _mm512_knot(state[k].m_have_tuple),
-              state[SIMDStateSize].pb_off);
+          state[k].tb_off = _mm512_mask_expand_epi64(
+              state[k].tb_off, _mm512_knot(state[k].m_have_tuple),
+              state[SIMDStateSize].tb_off);
           // compress temp
           state[SIMDStateSize].m_have_tuple =
               _mm512_kand(state[SIMDStateSize].m_have_tuple,
@@ -712,8 +706,8 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
               state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].ht_off);
           state[SIMDStateSize].key = _mm512_maskz_compress_epi64(
               state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].key);
-          state[SIMDStateSize].pb_off = _mm512_maskz_compress_epi64(
-              state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].pb_off);
+          state[SIMDStateSize].tb_off = _mm512_maskz_compress_epi64(
+              state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].tb_off);
           state[k].m_have_tuple = mask[VECTOR_SCALE];
           state[SIMDStateSize].m_have_tuple =
               (state[SIMDStateSize].m_have_tuple >> (VECTOR_SCALE - num));
@@ -751,26 +745,20 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
   __m512i v_offset = _mm512_set1_epi64(0),
           v_base_offset_upper =
               _mm512_set1_epi64(rel->num_tuples * sizeof(tuple_t)),
-          v_base_offset, v_left_size = _mm512_set1_epi64(8),
-          v_bucket_offset = _mm512_set1_epi64(0), v_ht_cell,
-          v_factor = _mm512_set1_epi64(ht->hash_mask),
+          v_base_offset, v_ht_cell, v_factor = _mm512_set1_epi64(ht->hash_mask),
           v_shift = _mm512_set1_epi64(ht->skip_bits), v_cell_hash,
-          v_neg_one512 = _mm512_set1_epi64(-1), v_ht_upper,
+          v_neg_one512 = _mm512_set1_epi64(-1),
           v_zero512 = _mm512_set1_epi64(0),
           v_write_index = _mm512_set1_epi64(0),
           v_ht_addr = _mm512_set1_epi64(ht->buckets),
           v_word_size = _mm512_set1_epi64(WORDSIZE),
           v_tuple_size = _mm512_set1_epi64(sizeof(tuple_t)),
           v_bucket_size = _mm512_set1_epi64(sizeof(bucket_t)),
-          v_next_off = _mm512_set1_epi64(8), v_left_payload, v_right_payload,
+          v_next_off = _mm512_set1_epi64(8), v_right_payload,
           v_payload_off = _mm512_set1_epi64(24);
   chainedtuplebuffer_t *chainedbuf = (chainedtuplebuffer_t *)output;
   tuple_t *join_res = NULL;
-  __attribute__((aligned(64))) uint64_t cur_offset = 0, base_off[16],
-                                        *left_payload, *right_payload, *ht_pos;
-  left_payload = (uint64_t *)&v_left_payload;
-  right_payload = (uint64_t *)&v_right_payload;
-
+  __attribute__((aligned(64))) uint64_t cur_offset = 0, base_off[16], *ht_pos;
   for (int i = 0; i <= VECTOR_SCALE; ++i) {
     base_off[i] = i * sizeof(tuple_t);
     mask[i] = (1 << i) - 1;
@@ -782,7 +770,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
     state[i].stage = 1;
     state[i].m_have_tuple = 0;
     state[i].ht_off = _mm512_set1_epi64(0);
-    state[i].pb_off = _mm512_set1_epi64(0);
+    state[i].payload = _mm512_set1_epi64(0);
     state[i].key = _mm512_set1_epi64(0);
   }
   for (uint64_t cur = 0; 1;) {
@@ -815,35 +803,32 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
                      _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 128),
                      _MM_HINT_T0);
-
 #endif
         // directly use cur, instead of cur_offset to control the offset to rel.
         // In this case, using step = 16 to gather data, but step is larger
         // than the scale 1,2,4 or 8
         v_offset =
             _mm512_add_epi64(_mm512_set1_epi64(cur_offset), v_base_offset);
-        state[k].pb_off = _mm512_mask_expand_epi64(
-            state[k].pb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
         // count the number of empty tuples
-        m_new_cells = _mm512_knot(state[k].m_have_tuple);
-        new_add = _mm_popcnt_u32(m_new_cells);
-        cur_offset = cur_offset + base_off[new_add];
-        cur = cur + new_add;
+        cur_offset = cur_offset + base_off[VECTOR_SCALE];
+        cur = cur + VECTOR_SCALE;
         state[k].m_have_tuple =
-            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].pb_off);
+            _mm512_cmpgt_epi64_mask(v_base_offset_upper, v_offset);
         ///// step 2: load new cells from right tuples;
-        m_new_cells = _mm512_kand(m_new_cells, state[k].m_have_tuple);
         // maybe need offset within a tuple
-        state[k].key = _mm512_mask_i64gather_epi64(state[k].key, m_new_cells,
-                                                   state[k].pb_off,
-                                                   ((void *)rel->tuples), 1);
+        state[k].key =
+            _mm512_mask_i64gather_epi64(state[k].key, state[k].m_have_tuple,
+                                        v_offset, ((void *)rel->tuples), 1);
+        state[k].payload = _mm512_mask_i64gather_epi64(
+            state[k].payload, state[k].m_have_tuple,
+            _mm512_add_epi64(v_offset, v_word_size), ((void *)rel->tuples), 1);
         ///// step 3: load new values from hash tables;
         // hash the cell values
         v_cell_hash = _mm512_and_epi64(state[k].key, v_factor);
         v_cell_hash = _mm512_srlv_epi64(v_cell_hash, v_shift);
         v_cell_hash = _mm512_mullo_epi64(v_cell_hash, v_bucket_size);
-        state[k].ht_off = _mm512_mask_add_epi64(state[k].ht_off, m_new_cells,
-                                                v_cell_hash, v_ht_addr);
+        state[k].ht_off = _mm512_mask_add_epi64(
+            state[k].ht_off, state[k].m_have_tuple, v_cell_hash, v_ht_addr);
         state[k].stage = 0;
 #if KNL
         _mm512_mask_prefetch_i64gather_pd(
@@ -883,15 +868,13 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
         m_match = _mm512_kand(m_match, state[k].m_have_tuple);
         new_add = _mm_popcnt_u32(m_match);
         matches += new_add;
+
         // gather payloads
-        v_left_payload = _mm512_mask_i64gather_epi64(
-            v_neg_one512, m_match,
-            _mm512_add_epi64(state[k].pb_off, v_word_size),
-            ((void *)rel->tuples), 1);
         v_right_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
             _mm512_add_epi64(state[k].ht_off, v_payload_off), 0, 1);
 
+        // update next
         state[k].ht_off = _mm512_mask_i64gather_epi64(
             v_zero512, state[k].m_have_tuple,
             _mm512_add_epi64(state[k].ht_off, v_next_off), 0, 1);
@@ -901,17 +884,19 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
 
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
-#if 0  // SEQPREFETCH
+#if SEQPREFETCH
         _mm_prefetch((char *)(((void *)join_res) + PDIS), _MM_HINT_T0);
         _mm_prefetch((char *)(((void *)join_res) + PDIS + 64), _MM_HINT_T0);
+        _mm_prefetch((char *)(((void *)join_res) + PDIS + 128), _MM_HINT_T0);
 #endif
         v_write_index =
             _mm512_mask_expand_epi64(v_zero512, m_match, v_base_offset);
         _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,
-                                     v_left_payload, 1);
+                                     state[k].payload, 1);
         v_write_index = _mm512_add_epi64(v_write_index, v_word_size);
-        _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,
+        _mm512_mask_i64scatter_epi64(((void *)join_res), m_match, v_write_index,
                                      v_right_payload, 1);
+
         num = _mm_popcnt_u32(state[k].m_have_tuple);
 #if 1
         if (num == VECTOR_SCALE) {
@@ -935,8 +920,8 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
                   state[k].m_have_tuple, state[k].ht_off);
               state[k].key = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
                                                          state[k].key);
-              state[k].pb_off = _mm512_maskz_compress_epi64(
-                  state[k].m_have_tuple, state[k].pb_off);
+              state[k].payload = _mm512_maskz_compress_epi64(
+                  state[k].m_have_tuple, state[k].payload);
               // expand v -> temp
               state[SIMDStateSize].ht_off = _mm512_mask_expand_epi64(
                   state[SIMDStateSize].ht_off,
@@ -945,10 +930,10 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
               state[SIMDStateSize].key = _mm512_mask_expand_epi64(
                   state[SIMDStateSize].key,
                   _mm512_knot(state[SIMDStateSize].m_have_tuple), state[k].key);
-              state[SIMDStateSize].pb_off = _mm512_mask_expand_epi64(
-                  state[SIMDStateSize].pb_off,
+              state[SIMDStateSize].payload = _mm512_mask_expand_epi64(
+                  state[SIMDStateSize].payload,
                   _mm512_knot(state[SIMDStateSize].m_have_tuple),
-                  state[k].pb_off);
+                  state[k].payload);
               state[SIMDStateSize].m_have_tuple = mask[num + num_temp];
               state[k].m_have_tuple = 0;
               state[k].stage = 1;
@@ -961,9 +946,10 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
               state[k].key = _mm512_mask_expand_epi64(
                   state[k].key, _mm512_knot(state[k].m_have_tuple),
                   state[SIMDStateSize].key);
-              state[k].pb_off = _mm512_mask_expand_epi64(
-                  state[k].pb_off, _mm512_knot(state[k].m_have_tuple),
-                  state[SIMDStateSize].pb_off);
+
+              state[k].payload = _mm512_mask_expand_epi64(
+                  state[k].payload, _mm512_knot(state[k].m_have_tuple),
+                  state[SIMDStateSize].payload);
               // compress temp
               state[SIMDStateSize].m_have_tuple =
                   _mm512_kand(state[SIMDStateSize].m_have_tuple,
@@ -973,9 +959,9 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
                                               state[SIMDStateSize].ht_off);
               state[SIMDStateSize].key = _mm512_maskz_compress_epi64(
                   state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].key);
-              state[SIMDStateSize].pb_off =
+              state[SIMDStateSize].payload =
                   _mm512_maskz_compress_epi64(state[SIMDStateSize].m_have_tuple,
-                                              state[SIMDStateSize].pb_off);
+                                              state[SIMDStateSize].payload);
               state[k].m_have_tuple = mask[VECTOR_SCALE];
               state[SIMDStateSize].m_have_tuple =
                   (state[SIMDStateSize].m_have_tuple >> (VECTOR_SCALE - num));
@@ -1047,7 +1033,7 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
     state[i].stage = 1;
     state[i].m_have_tuple = 0;
     state[i].ht_off = _mm512_set1_epi64(0);
-    state[i].pb_off = _mm512_set1_epi64(0);
+    state[i].tb_off = _mm512_set1_epi64(0);
     state[i].key = _mm512_set1_epi64(0);
   }
   for (uint64_t cur = 0; 1;) {
@@ -1091,20 +1077,20 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
         // than the scale 1,2,4 or 8
         v_offset =
             _mm512_add_epi64(_mm512_set1_epi64(cur_offset), v_base_offset);
-        state[k].pb_off = _mm512_mask_expand_epi64(
-            state[k].pb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
+        state[k].tb_off = _mm512_mask_expand_epi64(
+            state[k].tb_off, _mm512_knot(state[k].m_have_tuple), v_offset);
         // count the number of empty tuples
         m_new_cells = _mm512_knot(state[k].m_have_tuple);
         new_add = _mm_popcnt_u32(m_new_cells);
         cur_offset = cur_offset + base_off[new_add];
         cur = cur + new_add;
         state[k].m_have_tuple =
-            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].pb_off);
+            _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].tb_off);
         ///// step 2: load new cells from right tuples;
         m_new_cells = _mm512_kand(m_new_cells, state[k].m_have_tuple);
         // maybe need offset within a tuple
         state[k].key = _mm512_mask_i64gather_epi64(state[k].key, m_new_cells,
-                                                   state[k].pb_off,
+                                                   state[k].tb_off,
                                                    ((void *)rel->tuples), 1);
         ///// step 3: load new values from hash tables;
         // hash the cell values
@@ -1155,7 +1141,7 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
         // gather payloads
         v_left_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
-            _mm512_add_epi64(state[k].pb_off, v_word_size),
+            _mm512_add_epi64(state[k].tb_off, v_word_size),
             ((void *)rel->tuples), 1);
         v_right_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
@@ -1218,8 +1204,8 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
               state[k].m_have_tuple, state[k].ht_off);
           state_temp[0].key =
               _mm512_maskz_compress_epi64(state[k].m_have_tuple, state[k].key);
-          state_temp[0].pb_off = _mm512_maskz_compress_epi64(
-              state[k].m_have_tuple, state[k].pb_off);
+          state_temp[0].tb_off = _mm512_maskz_compress_epi64(
+              state[k].m_have_tuple, state[k].tb_off);
           // expand v -> temp
           state_temp[1].ht_off = _mm512_mask_expand_epi64(
               state[SIMDStateSize].ht_off,
@@ -1229,10 +1215,10 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
               state[SIMDStateSize].key,
               _mm512_knot(state[SIMDStateSize].m_have_tuple),
               state_temp[0].key);
-          state_temp[1].pb_off = _mm512_mask_expand_epi64(
-              state[SIMDStateSize].pb_off,
+          state_temp[1].tb_off = _mm512_mask_expand_epi64(
+              state[SIMDStateSize].tb_off,
               _mm512_knot(state[SIMDStateSize].m_have_tuple),
-              state_temp[0].pb_off);
+              state_temp[0].tb_off);
 
           {
             // case: num + num_temp >= VECTOR_SCALE
@@ -1243,9 +1229,9 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
             state[k].key = _mm512_mask_expand_epi64(
                 state[k].key, _mm512_knot(state[k].m_have_tuple),
                 state[SIMDStateSize].key);
-            state[k].pb_off = _mm512_mask_expand_epi64(
-                state[k].pb_off, _mm512_knot(state[k].m_have_tuple),
-                state[SIMDStateSize].pb_off);
+            state[k].tb_off = _mm512_mask_expand_epi64(
+                state[k].tb_off, _mm512_knot(state[k].m_have_tuple),
+                state[SIMDStateSize].tb_off);
             // compress temp
             state[SIMDStateSize].m_have_tuple =
                 _mm512_kand(state[SIMDStateSize].m_have_tuple,
@@ -1254,8 +1240,8 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
                 state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].ht_off);
             state[SIMDStateSize].key = _mm512_maskz_compress_epi64(
                 state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].key);
-            state[SIMDStateSize].pb_off = _mm512_maskz_compress_epi64(
-                state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].pb_off);
+            state[SIMDStateSize].tb_off = _mm512_maskz_compress_epi64(
+                state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].tb_off);
           }
 
           {  // merge the results of the two cases
@@ -1263,15 +1249,15 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
                                                     state_temp[0].ht_off);
             state[k].key =
                 _mm512_mask_mov_epi64(state[k].key, flag, state_temp[0].key);
-            state[k].pb_off = _mm512_mask_mov_epi64(state[k].pb_off, flag,
-                                                    state_temp[0].pb_off);
+            state[k].tb_off = _mm512_mask_mov_epi64(state[k].tb_off, flag,
+                                                    state_temp[0].tb_off);
 
             state[SIMDStateSize].ht_off = _mm512_mask_mov_epi64(
                 state[SIMDStateSize].ht_off, flag, state_temp[1].ht_off);
             state[SIMDStateSize].key = _mm512_mask_mov_epi64(
                 state[SIMDStateSize].key, flag, state_temp[1].key);
-            state[SIMDStateSize].pb_off = _mm512_mask_mov_epi64(
-                state[SIMDStateSize].pb_off, flag, state_temp[1].pb_off);
+            state[SIMDStateSize].tb_off = _mm512_mask_mov_epi64(
+                state[SIMDStateSize].tb_off, flag, state_temp[1].tb_off);
             state[k].m_have_tuple = _mm512_kor(
                 0, _mm512_kand(mask[VECTOR_SCALE], _mm512_knot(flag)));
 
@@ -1346,7 +1332,7 @@ int64_t probe_simd_gp(hashtable_t *ht, relation_t *rel, void *output) {
     state[i].stage = 1;
     state[i].m_have_tuple = 0;
     state[i].ht_off = _mm512_set1_epi64(0);
-    state[i].pb_off = _mm512_set1_epi64(0);
+    state[i].tb_off = _mm512_set1_epi64(0);
     state[i].key = _mm512_set1_epi64(0);
   }
   for (uint64_t cur = 0; (cur < rel->num_tuples);) {
@@ -1370,18 +1356,18 @@ int64_t probe_simd_gp(hashtable_t *ht, relation_t *rel, void *output) {
       // In this case, using step = 16 to gather data, but step is larger
       // than the scale 1,2,4 or 8
 
-      state[k].pb_off =
+      state[k].tb_off =
           _mm512_add_epi64(_mm512_set1_epi64(cur_offset), v_base_offset);
       new_add = VECTOR_SCALE;
       cur_offset = cur_offset + base_off[new_add];
       cur = cur + new_add;
       state[k].m_have_tuple =
-          _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].pb_off);
+          _mm512_cmpgt_epi64_mask(v_base_offset_upper, state[k].tb_off);
       ///// step 2: load new cells from right tuples;
       m_new_cells = state[k].m_have_tuple;
       // maybe need offset within a tuple
       state[k].key = _mm512_mask_i64gather_epi64(
-          state[k].key, m_new_cells, state[k].pb_off, ((void *)rel->tuples), 1);
+          state[k].key, m_new_cells, state[k].tb_off, ((void *)rel->tuples), 1);
       ///// step 3: load new values from hash tables;
       // hash the cell values
       v_cell_hash = _mm512_and_epi64(state[k].key, v_factor);
@@ -1441,7 +1427,7 @@ int64_t probe_simd_gp(hashtable_t *ht, relation_t *rel, void *output) {
         // gather payloads
         v_left_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
-            _mm512_add_epi64(state[k].pb_off, v_word_size),
+            _mm512_add_epi64(state[k].tb_off, v_word_size),
             ((void *)rel->tuples), 1);
         v_right_payload = _mm512_mask_i64gather_epi64(
             v_neg_one512, m_match,
