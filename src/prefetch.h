@@ -45,7 +45,7 @@ typedef struct StateSIMD StateSIMD;
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
 #define SEQPREFETCH 1
-// #define _MM_HINT_T0 _MM_HINT_NTA
+#define _MM_HINT_T0 _MM_HINT_NTA
 #if KNL
 #define _mm512_mullo_epi64(a, b) _mm512_mullo_epi32(a, b)
 #endif

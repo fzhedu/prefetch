@@ -182,7 +182,7 @@ void allocate_hashtable(hashtable_t **ppht, uint32_t nbuckets) {
   ht = (hashtable_t *)malloc(sizeof(hashtable_t));
   ht->num_buckets = nbuckets;
   NEXT_POW_2((ht->num_buckets));
-  // / ht->num_buckets = ht->num_buckets / 8;
+  ht->num_buckets = ht->num_buckets / 4;
 
   /* allocate hashtable buckets cache line aligned */
   if (posix_memalign((void **)&ht->buckets, CACHE_LINE_SIZE,
@@ -550,6 +550,7 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
           ++k;
         } else {
           state[k].stage = 1;
+          ++k;
         }
       } break;
       default: { ++k; }
