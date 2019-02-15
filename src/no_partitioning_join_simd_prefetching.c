@@ -38,10 +38,10 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
   }
   v_base_offset = _mm512_load_epi64(base_off);
   for (uint64_t cur = 0; cur < rel->num_tuples || m_have_tuple;) {
-///////// step 1: load new tuples' address offsets
-// the offset should be within MAX_32INT_
-// the tail depends on the number of joins and tuples in each bucket
-#if SEQPREFETCH
+    ///////// step 1: load new tuples' address offsets
+    // the offset should be within MAX_32INT_
+    // the tail depends on the number of joins and tuples in each bucket
+    /*#if SEQPREFETCH
     _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS),
                  _MM_HINT_T0);
     _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 64),
@@ -53,6 +53,7 @@ int64_t probe_simd(hashtable_t *ht, relation_t *rel, void *output) {
     _mm_prefetch((char *)(((void *)rel->tuples) + cur_offset + PDIS + 256),
                  _MM_HINT_T0);
 #endif
+ */
     // directly use cur, instead of cur_offset to control the offset to rel.
     // In this case, using step = 16 to gather data, but step is larger
     // than the scale 1,2,4 or 8
@@ -274,29 +275,9 @@ int64_t probe_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
         v_write_index = _mm512_add_epi64(v_write_index, v_word_size);
         _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,
                                      v_right_payload, 1);
-        new_add = _mm_popcnt_u32(state[k].m_have_tuple);
-        if (new_add < 9) {
-          state[k].stage = 1;
-        } else {
-#if KNL
-          _mm512_mask_prefetch_i64gather_pd(
-              state[k].ht_off, state[k].m_have_tuple, 0, 1, _MM_HINT_T0);
-#elif DIR_PREFETCH
-          ht_pos = (uint64_t *)&state[k].ht_off;
-          for (int i = 0; i < VECTOR_SCALE; ++i) {
-            _mm_prefetch((char *)(ht_pos[i]), _MM_HINT_T0);
-          }
-#else
-          m_have_tuple = state[k].m_have_tuple;
-          ht_pos = (uint64_t *)&state[k].ht_off;
-          for (int i = 0; (i < VECTOR_SCALE) & (m_have_tuple);
-               ++i, (m_have_tuple >> 1)) {
-            if (m_have_tuple & 1) {
-              _mm_prefetch((char *)(ht_pos[i]), _MM_HINT_T0);
-            }
-          }
-#endif
-        }
+        // return back every time
+        state[k].stage = 1;
+
       } break;
     }
     ++k;
@@ -762,8 +743,7 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
   }
   return matches;
 }
-int64_t smv_probe(hashtable_t *ht, relation_t *rel,
-                                 void *output) {
+int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
   int64_t matches = 0;
   int32_t new_add = 0, k = 0, done = 0, num, num_temp;
   __mmask8 m_match = 0, m_new_cells = -1, m_valid_bucket = 0,
@@ -924,14 +904,19 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel,
 
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
-#if SEQPREFETCH
-        _mm_prefetch((char *)(((void *)join_res) + PDIS), _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)join_res) + PDIS + 64), _MM_HINT_T0);
-//   _mm_prefetch((char *)(((void *)join_res) + PDIS + 128), _MM_HINT_T0);
-// _mm_prefetch((char *)(((void *)join_res) + PDIS + 192), _MM_HINT_T0);
-//  _mm_prefetch((char *)(((void *)join_res) + PDIS + 256), _MM_HINT_T0);
-
-#endif
+        //#if SEQPREFETCH
+        //        _mm_prefetch((char *)(((void *)join_res) + PDIS),
+        //        _MM_HINT_T0);
+        //        _mm_prefetch((char *)(((void *)join_res) + PDIS + 64),
+        //        _MM_HINT_T0);
+        ////   _mm_prefetch((char *)(((void *)join_res) + PDIS + 128),
+        ///_MM_HINT_T0);
+        //// _mm_prefetch((char *)(((void *)join_res) + PDIS + 192),
+        ///_MM_HINT_T0);
+        ////  _mm_prefetch((char *)(((void *)join_res) + PDIS + 256),
+        ///_MM_HINT_T0);
+        //
+        //#endif
         v_write_index =
             _mm512_mask_expand_epi64(v_zero512, m_match, v_base_offset);
         _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,
@@ -1195,14 +1180,19 @@ int64_t probe_simd_amac_compact2(hashtable_t *ht, relation_t *rel,
 
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
-#if SEQPREFETCH
-        _mm_prefetch((char *)(((void *)join_res) + PDIS), _MM_HINT_T0);
-        _mm_prefetch((char *)(((void *)join_res) + PDIS + 64), _MM_HINT_T0);
-//   _mm_prefetch((char *)(((void *)join_res) + PDIS + 128), _MM_HINT_T0);
-// _mm_prefetch((char *)(((void *)join_res) + PDIS + 192), _MM_HINT_T0);
-//  _mm_prefetch((char *)(((void *)join_res) + PDIS + 256), _MM_HINT_T0);
-
-#endif
+        //#if SEQPREFETCH
+        //        _mm_prefetch((char *)(((void *)join_res) + PDIS),
+        //        _MM_HINT_T0);
+        //        _mm_prefetch((char *)(((void *)join_res) + PDIS + 64),
+        //        _MM_HINT_T0);
+        ////   _mm_prefetch((char *)(((void *)join_res) + PDIS + 128),
+        ///_MM_HINT_T0);
+        //// _mm_prefetch((char *)(((void *)join_res) + PDIS + 192),
+        ///_MM_HINT_T0);
+        ////  _mm_prefetch((char *)(((void *)join_res) + PDIS + 256),
+        ///_MM_HINT_T0);
+        //
+        //#endif
         v_write_index =
             _mm512_mask_expand_epi64(v_zero512, m_match, v_base_offset);
         _mm512_mask_i64scatter_epi64((void *)join_res, m_match, v_write_index,

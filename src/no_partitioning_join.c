@@ -182,6 +182,7 @@ void allocate_hashtable(hashtable_t **ppht, uint32_t nbuckets) {
   ht = (hashtable_t *)malloc(sizeof(hashtable_t));
   ht->num_buckets = nbuckets;
   NEXT_POW_2((ht->num_buckets));
+  // / ht->num_buckets = ht->num_buckets / 8;
 
   /* allocate hashtable buckets cache line aligned */
   if (posix_memalign((void **)&ht->buckets, CACHE_LINE_SIZE,
@@ -305,6 +306,7 @@ int64_t probe_hashtable(hashtable_t *ht, relation_t *rel, void *output) {
 #endif
 
   matches = 0;
+  j = 0;
 
 #ifdef JOIN_RESULT_MATERIALIZE
   chainedtuplebuffer_t *chainedbuf = (chainedtuplebuffer_t *)output;
@@ -321,15 +323,14 @@ int64_t probe_hashtable(hashtable_t *ht, relation_t *rel, void *output) {
       if (b->count == 0) {
         break;
       }
-      j = 0;
 #endif
-        if (rel->tuples[i].key == b->tuples[j].key) {
+        if (rel->tuples[i].key == b->tuples[0].key) {
           matches++;
 
 #ifdef JOIN_RESULT_MATERIALIZE
           /* copy to the result buffer */
           tuple_t *joinres = cb_next_writepos(chainedbuf);
-          joinres->key = b->tuples[j].payload;       /* R-rid */
+          joinres->key = b->tuples[0].payload;       /* R-rid */
           joinres->payload = rel->tuples[i].payload; /* S-rid */
 #endif
         }
@@ -528,12 +529,12 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
           break;
         }
 #endif
-          if (rel->tuples[state[k].tuple_id].key == b->tuples[j].key) {
+          if (rel->tuples[state[k].tuple_id].key == b->tuples[0].key) {
             ++matches;
 
             /* copy to the result buffer */
             tuple_t *joinres = cb_next_writepos(chainedbuf);
-            joinres->key = b->tuples[j].payload; /* R-rid */
+            joinres->key = b->tuples[0].payload; /* R-rid */
             joinres->payload =
                 rel->tuples[state[k].tuple_id].payload; /* S-rid */
           }
@@ -880,9 +881,9 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-  */  ////////////////GP
-  /// probe
-  chainedtuplebuffer_t *chainedbuf_gp = chainedtuplebuffer_init();
+  */
+  ////////////////GP probe
+  /*chainedtuplebuffer_t *chainedbuf_gp = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     gettimeofday(&t1, NULL);
@@ -907,6 +908,7 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
+  */
   ////////////////AMAC probe
   chainedtuplebuffer_t *chainedbuf_amac = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
@@ -962,6 +964,7 @@ void *npo_thread(void *param) {
     puts("+++++sleep end  +++++");
   }
   ////////////////SIMD GP probe
+  /*
   chainedtuplebuffer_t *chainedbuf_simd_gp = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
@@ -989,6 +992,7 @@ void *npo_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
+  */
   ////////////////SIMD AMAC probe
   chainedtuplebuffer_t *chainedbuf_simd_amac = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
