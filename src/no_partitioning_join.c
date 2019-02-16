@@ -534,8 +534,12 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
           if (rel->tuples[state[k].tuple_id].key == b->tuples[0].key) {
             ++matches;
 #if 1
+
             /* copy to the result buffer */
             tuple_t *joinres = cb_next_writepos(chainedbuf);
+#if SEQPREFETCH
+            _mm_prefetch((char *)(((void *)joinres) + PDIS), _MM_HINT_T0);
+#endif
             joinres->key = b->tuples[0].payload; /* R-rid */
             joinres->payload =
                 rel->tuples[state[k].tuple_id].payload; /* S-rid */

@@ -42,7 +42,7 @@ typedef struct StateSIMD StateSIMD;
 #define SIMDStateSize 8
 #define SEQ_DIS 30
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
-#define REPEAT_PROBE 3
+#define REPEAT_PROBE 2
 #define SLEEP_TIME 0
 #define PDIS 256
 #define VECTOR_SCALE 8
