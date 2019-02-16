@@ -63,7 +63,7 @@ struct hashtable_t {
 struct bucket_buffer_t {
   struct bucket_buffer_t* next;
   uint32_t count;
-  bucket_t buf[OVERFLOW_BUF_SIZE];
+  bucket_t* buf;
 };
 
 /** @} */

@@ -19,6 +19,9 @@
 #define BUCKET_SIZE 1
 #endif
 
+#ifndef PAGE_SIZE
+#define PAGE_SIZE (1 << 30)
+#endif
 /** Size of system cache line in bytes */
 #ifndef CACHE_LINE_SIZE
 #define CACHE_LINE_SIZE 64
@@ -26,7 +29,7 @@
 
 /** Pre-allocation size for overflow buffers */
 #ifndef OVERFLOW_BUF_SIZE
-#define OVERFLOW_BUF_SIZE 1024
+#define OVERFLOW_BUF_SIZE (PAGE_SIZE >> 5)  // sizeof(bucket_t) = 2^5
 #endif
 
 /** Should hashtable buckets be padded to cache line size */

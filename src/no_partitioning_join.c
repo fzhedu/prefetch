@@ -126,6 +126,11 @@ struct arg_t {
 void init_bucket_buffer(bucket_buffer_t **ppbuf) {
   bucket_buffer_t *overflowbuf;
   overflowbuf = (bucket_buffer_t *)malloc(sizeof(bucket_buffer_t));
+  if (posix_memalign((void **)&(overflowbuf->buf), PAGE_SIZE,
+                     sizeof(bucket_t) * OVERFLOW_BUF_SIZE)) {
+    perror("overflow buffer : Aligned allocation failed!\n");
+    exit(EXIT_FAILURE);
+  }
   overflowbuf->count = 0;
   overflowbuf->next = NULL;
 
@@ -148,6 +153,12 @@ static inline void get_new_bucket(bucket_t **result, bucket_buffer_t **buf) {
     /* need to allocate new buffer */
     bucket_buffer_t *new_buf =
         (bucket_buffer_t *)malloc(sizeof(bucket_buffer_t));
+    if (posix_memalign((void **)&(new_buf->buf), PAGE_SIZE,
+                       sizeof(bucket_t) * OVERFLOW_BUF_SIZE)) {
+      perror("overflow buffer : Aligned allocation failed!\n");
+      exit(EXIT_FAILURE);
+    }
+
     new_buf->count = 1;
     new_buf->next = *buf;
     *buf = new_buf;
@@ -159,6 +170,7 @@ static inline void get_new_bucket(bucket_t **result, bucket_buffer_t **buf) {
 void free_bucket_buffer(bucket_buffer_t *buf) {
   do {
     bucket_buffer_t *tmp = buf->next;
+    free(buf->buf);
     free(buf);
     buf = tmp;
   } while (buf);
@@ -1106,7 +1118,7 @@ result_t *NPO(relation_t *relR, relation_t *relS, int nthreads) {
 
 #ifdef JOIN_RESULT_MATERIALIZE
   joinresult->resultlist =
-      (threadresult_t *)malloc(sizeof(threadresult_t) * nthreads);
+      (threadresult_t *)alloc_aligned(sizeof(threadresult_t) * nthreads);
 #endif
 
   uint32_t nbuckets = (relR->num_tuples / BUCKET_SIZE);
