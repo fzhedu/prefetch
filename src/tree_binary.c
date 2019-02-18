@@ -237,7 +237,7 @@ void *bts_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("---- SMV pipeline costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
+      printf("------ SMV bts costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }

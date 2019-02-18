@@ -125,7 +125,7 @@ int64_t pipeline_simd(hashtable_t *ht, relation_t *rel, void *output) {
 int64_t pipeline_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
   int64_t matches = 0;
   int32_t new_add = 0, k = 0, done = 0;
-  __mmask8 m_match = 0, m_new_cells = -1, m_valid_bucket = 0;
+  __mmask8 m_match = 0, m_new_cells = -1, m_valid_bucket = 0, m_new = 0;
   __m512i v_offset = _mm512_set1_epi64(0),
           v_base_offset_upper =
               _mm512_set1_epi64(rel->num_tuples * sizeof(tuple_t)),
@@ -210,13 +210,24 @@ int64_t pipeline_simd_amac(hashtable_t *ht, relation_t *rel, void *output) {
         m_match = _mm512_cmpge_epi64_mask(v_A, SIMD_B);
         state[k].m_have_tuple = _mm512_kand(state[k].m_have_tuple, m_match);
 
+        m_new = _mm512_kor(m_new, m_new_cells);
+        new_add = _mm_popcnt_u32(state[k].m_have_tuple);
+        if ((new_add == VECTOR_SCALE) || (cur >= rel->num_tuples)) {
+          state[k].stage = 2;
+          --k;
+        } else {
+          --k;  // next continue to this stage, not interleave
+        }
+      } break;
+      case 2: {
         ///// step 3: load new values from hash tables;
         // hash the cell values
         v_cell_hash = _mm512_and_epi64(state[k].key, v_factor);
         v_cell_hash = _mm512_srlv_epi64(v_cell_hash, v_shift);
         v_cell_hash = _mm512_mullo_epi64(v_cell_hash, v_bucket_size);
-        state[k].ht_off = _mm512_mask_add_epi64(state[k].ht_off, m_new_cells,
+        state[k].ht_off = _mm512_mask_add_epi64(state[k].ht_off, m_new,
                                                 v_cell_hash, v_ht_addr);
+        m_new = 0;
         state[k].stage = 0;
 #if KNL
         _mm512_mask_prefetch_i64gather_pd(
@@ -783,9 +794,11 @@ int64_t pipeline_smv(hashtable_t *ht, relation_t *rel, void *output) {
     mask[i] = (1 << i) - 1;
   }
   v_base_offset = _mm512_load_epi64(base_off);
-  StateSIMD state[SIMDStateSize + 1];
+  StateSIMD state[SIMDStateSize + 2];
+#define RSV0 SIMDStateSize
+#define RSV1 (SIMDStateSize + 1)
   // init # of the state
-  for (int i = 0; i <= SIMDStateSize; ++i) {
+  for (int i = 0; i < SIMDStateSize + 2; ++i) {
     state[i].stage = 1;
     state[i].m_have_tuple = 0;
     state[i].ht_off = _mm512_set1_epi64(0);
@@ -801,12 +814,16 @@ int64_t pipeline_smv(hashtable_t *ht, relation_t *rel, void *output) {
         ++k;
         continue;
       }
+      // process residual states at last
       if ((done >= SIMDStateSize)) {
-        if (state[SIMDStateSize].m_have_tuple > 0) {
-          k = SIMDStateSize;
-          state[SIMDStateSize].stage = 0;
+        if (state[RSV1].m_have_tuple > 0) {
+          k = RSV1;
         } else {
-          break;
+          if (state[RSV0].m_have_tuple > 0) {
+            k = RSV0;
+          } else {
+            break;
+          }
         }
       }
     }
@@ -845,7 +862,70 @@ int64_t pipeline_smv(hashtable_t *ht, relation_t *rel, void *output) {
         v_A = _mm512_mullo_epi64(state[k].key, SIMD_A);
         m_match = _mm512_cmpge_epi64_mask(v_A, SIMD_B);
         state[k].m_have_tuple = _mm512_kand(state[k].m_have_tuple, m_match);
+        num = _mm_popcnt_u32(state[k].m_have_tuple);
+        if (num == VECTOR_SCALE) {
+          state[k].stage = 2;
+        } else {
+          if ((done < SIMDStateSize)) {
+            num_temp = _mm_popcnt_u32(state[RSV1].m_have_tuple);
+            if (num + num_temp < VECTOR_SCALE) {
+              // compress v
+              state[k].ht_off = _mm512_maskz_compress_epi64(
+                  state[k].m_have_tuple, state[k].ht_off);
+              state[k].key = _mm512_maskz_compress_epi64(state[k].m_have_tuple,
+                                                         state[k].key);
+              state[k].payload = _mm512_maskz_compress_epi64(
+                  state[k].m_have_tuple, state[k].payload);
+              // expand v -> temp
+              state[RSV1].ht_off = _mm512_mask_expand_epi64(
+                  state[RSV1].ht_off, _mm512_knot(state[RSV1].m_have_tuple),
+                  state[k].ht_off);
+              state[RSV1].key = _mm512_mask_expand_epi64(
+                  state[RSV1].key, _mm512_knot(state[RSV1].m_have_tuple),
+                  state[k].key);
+              state[RSV1].payload = _mm512_mask_expand_epi64(
+                  state[RSV1].payload, _mm512_knot(state[RSV1].m_have_tuple),
+                  state[k].payload);
+              state[RSV1].m_have_tuple = mask[num + num_temp];
+              state[k].m_have_tuple = 0;
+              state[k].stage = 1;
+              state[RSV1].stage = 2;
 
+            } else {
+              // expand temp -> v
+              state[k].ht_off = _mm512_mask_expand_epi64(
+                  state[k].ht_off, _mm512_knot(state[k].m_have_tuple),
+                  state[RSV1].ht_off);
+              state[k].key = _mm512_mask_expand_epi64(
+                  state[k].key, _mm512_knot(state[k].m_have_tuple),
+                  state[RSV1].key);
+
+              state[k].payload = _mm512_mask_expand_epi64(
+                  state[k].payload, _mm512_knot(state[k].m_have_tuple),
+                  state[RSV1].payload);
+              // compress temp
+              state[RSV1].m_have_tuple =
+                  _mm512_kand(state[RSV1].m_have_tuple,
+                              _mm512_knot(mask[VECTOR_SCALE - num]));
+              state[RSV1].ht_off = _mm512_maskz_compress_epi64(
+                  state[RSV1].m_have_tuple, state[RSV1].ht_off);
+              state[RSV1].key = _mm512_maskz_compress_epi64(
+                  state[RSV1].m_have_tuple, state[RSV1].key);
+              state[RSV1].payload = _mm512_maskz_compress_epi64(
+                  state[RSV1].m_have_tuple, state[RSV1].payload);
+              state[k].m_have_tuple = mask[VECTOR_SCALE];
+              state[RSV1].m_have_tuple =
+                  (state[RSV1].m_have_tuple >> (VECTOR_SCALE - num));
+              state[k].stage = 2;
+              state[RSV1].stage = 2;
+            }
+            // --k;  // next continue to this stage, not interleave
+          } else {
+            state[k].stage = 2;
+          }
+        }
+      } break;
+      case 2: {
         ///// step 3: load new values from hash tables;
         // hash the cell values
         v_cell_hash = _mm512_and_epi64(state[k].key, v_factor);
@@ -936,8 +1016,8 @@ int64_t pipeline_smv(hashtable_t *ht, relation_t *rel, void *output) {
         } else
 #endif
         {
-          if ((done < SIMDStateSize)) {
-            num_temp = _mm_popcnt_u32(state[SIMDStateSize].m_have_tuple);
+          if ((done < SIMDStateSize) || (state[RSV1].m_have_tuple > 0)) {
+            num_temp = _mm_popcnt_u32(state[RSV0].m_have_tuple);
             if (num + num_temp < VECTOR_SCALE) {
               // compress v
               state[k].ht_off = _mm512_maskz_compress_epi64(
@@ -947,49 +1027,48 @@ int64_t pipeline_smv(hashtable_t *ht, relation_t *rel, void *output) {
               state[k].payload = _mm512_maskz_compress_epi64(
                   state[k].m_have_tuple, state[k].payload);
               // expand v -> temp
-              state[SIMDStateSize].ht_off = _mm512_mask_expand_epi64(
-                  state[SIMDStateSize].ht_off,
-                  _mm512_knot(state[SIMDStateSize].m_have_tuple),
+              state[RSV0].ht_off = _mm512_mask_expand_epi64(
+                  state[RSV0].ht_off, _mm512_knot(state[RSV0].m_have_tuple),
                   state[k].ht_off);
-              state[SIMDStateSize].key = _mm512_mask_expand_epi64(
-                  state[SIMDStateSize].key,
-                  _mm512_knot(state[SIMDStateSize].m_have_tuple), state[k].key);
-              state[SIMDStateSize].payload = _mm512_mask_expand_epi64(
-                  state[SIMDStateSize].payload,
-                  _mm512_knot(state[SIMDStateSize].m_have_tuple),
+              state[RSV0].key = _mm512_mask_expand_epi64(
+                  state[RSV0].key, _mm512_knot(state[RSV0].m_have_tuple),
+                  state[k].key);
+              state[RSV0].payload = _mm512_mask_expand_epi64(
+                  state[RSV0].payload, _mm512_knot(state[RSV0].m_have_tuple),
                   state[k].payload);
-              state[SIMDStateSize].m_have_tuple = mask[num + num_temp];
+              state[RSV0].m_have_tuple = mask[num + num_temp];
               state[k].m_have_tuple = 0;
               state[k].stage = 1;
+              state[RSV0].stage = 0;
 
             } else {
               // expand temp -> v
               state[k].ht_off = _mm512_mask_expand_epi64(
                   state[k].ht_off, _mm512_knot(state[k].m_have_tuple),
-                  state[SIMDStateSize].ht_off);
+                  state[RSV0].ht_off);
               state[k].key = _mm512_mask_expand_epi64(
                   state[k].key, _mm512_knot(state[k].m_have_tuple),
-                  state[SIMDStateSize].key);
+                  state[RSV0].key);
 
               state[k].payload = _mm512_mask_expand_epi64(
                   state[k].payload, _mm512_knot(state[k].m_have_tuple),
-                  state[SIMDStateSize].payload);
+                  state[RSV0].payload);
               // compress temp
-              state[SIMDStateSize].m_have_tuple =
-                  _mm512_kand(state[SIMDStateSize].m_have_tuple,
+              state[RSV0].m_have_tuple =
+                  _mm512_kand(state[RSV0].m_have_tuple,
                               _mm512_knot(mask[VECTOR_SCALE - num]));
-              state[SIMDStateSize].ht_off =
-                  _mm512_maskz_compress_epi64(state[SIMDStateSize].m_have_tuple,
-                                              state[SIMDStateSize].ht_off);
-              state[SIMDStateSize].key = _mm512_maskz_compress_epi64(
-                  state[SIMDStateSize].m_have_tuple, state[SIMDStateSize].key);
-              state[SIMDStateSize].payload =
-                  _mm512_maskz_compress_epi64(state[SIMDStateSize].m_have_tuple,
-                                              state[SIMDStateSize].payload);
+              state[RSV0].ht_off = _mm512_maskz_compress_epi64(
+                  state[RSV0].m_have_tuple, state[RSV0].ht_off);
+              state[RSV0].key = _mm512_maskz_compress_epi64(
+                  state[RSV0].m_have_tuple, state[RSV0].key);
+              state[RSV0].payload = _mm512_maskz_compress_epi64(
+                  state[RSV0].m_have_tuple, state[RSV0].payload);
               state[k].m_have_tuple = mask[VECTOR_SCALE];
-              state[SIMDStateSize].m_have_tuple =
-                  (state[SIMDStateSize].m_have_tuple >> (VECTOR_SCALE - num));
+              state[RSV0].m_have_tuple =
+                  (state[RSV0].m_have_tuple >> (VECTOR_SCALE - num));
               state[k].stage = 0;
+              state[RSV0].stage = 0;
+
 #if KNL
               _mm512_mask_prefetch_i64gather_pd(
                   state[k].ht_off, state[k].m_have_tuple, 0, 1, _MM_HINT_T0);
