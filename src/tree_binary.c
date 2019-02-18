@@ -60,8 +60,8 @@ int64_t search_tree_raw(tree_t *tree, relation_t *rel, void *output) {
 #ifdef JOIN_RESULT_MATERIALIZE
         /* copy to the result buffer */
         tuple_t *joinres = cb_next_writepos(chainedbuf);
-        joinres->key = node->payload;              /* R-rid */
-        joinres->payload = rel->tuples[i].payload; /* S-rid */
+        joinres->key = node->payload;   /* R-rid */
+        joinres->payload = tp->payload; /* S-rid */
 #endif
         break;
       }
@@ -71,20 +71,66 @@ int64_t search_tree_raw(tree_t *tree, relation_t *rel, void *output) {
 }
 int64_t search_tree_AMAC(tree_t *tree, relation_t *rel, void *output) {
   int64_t matches = 0;
+  int16_t k = 0, done = 0, j = 0;
   tuple_t *tp = NULL;
-  tnode_t *node = tree->first_node;
-  for (uint64_t i = 0; i < rel->num_tuples; i++) {
-    tp = rel->tuples + i;
-    while (NULL != node) {
-      if (tp->key < node->key) {
-        node = node->lnext;
-      } else if (tp->key > node->key) {
-        node = node->rnext;
-      } else {
-        ++matches;
-        break;
-      }
+  tree_state_t state[ScalarStateSize];
+  tnode_t *node = NULL;
+  chainedtuplebuffer_t *chainedbuf = (chainedtuplebuffer_t *)output;
+  // init # of the state
+  for (int i = 0; i < ScalarStateSize; ++i) {
+    state[i].stage = 1;
+  }
+
+  for (uint64_t cur = 0; done < ScalarStateSize;) {
+    k = (k >= ScalarStateSize) ? 0 : k;
+    switch (state[k].stage) {
+      case 1: {
+        if (cur >= rel->num_tuples) {
+          ++done;
+          state[k].stage = 3;
+          ++k;
+          break;
+        }
+#if SEQPREFETCH
+        _mm_prefetch((char *)(rel->tuples + cur + SEQ_DIS), _MM_HINT_T0);
+#endif
+        state[k].b = tree->first_node;
+        state[k].tuple_id = cur;
+        state[k].stage = 0;
+        ++cur;
+        --k;
+      } break;
+      case 0: {
+        tp = rel->tuples + state[k].tuple_id;
+        node = state[k].b;
+        if (tp->key == node->key) {
+          ++matches;
+#ifdef JOIN_RESULT_MATERIALIZE
+          /* copy to the result buffer */
+          tuple_t *joinres = cb_next_writepos(chainedbuf);
+          joinres->key = node->payload;   /* R-rid */
+          joinres->payload = tp->payload; /* S-rid */
+#endif
+          state[k].stage = 1;
+          _mm_prefetch((char *)(tree->first_node), _MM_HINT_T0);
+
+        } else {
+          if (tp->key < node->key) {
+            node = node->lnext;
+          } else if (tp->key > node->key) {
+            node = node->rnext;
+          }
+          if (node) {
+            _mm_prefetch((char *)(node), _MM_HINT_T0);
+            state[k].b = node;
+          } else {
+            _mm_prefetch((char *)(tree->first_node), _MM_HINT_T0);
+            state[k].stage = 1;
+          }
+        }
+      } break;
     }
+    ++k;
   }
   return matches;
 }
@@ -177,13 +223,12 @@ void *bts_thread(void *param) {
     puts("+++++sleep end  +++++");
   }
     //
-
+*/
   chainedtuplebuffer_t *chainedbuf_compact1 = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     gettimeofday(&t1, NULL);
-    args->num_results =
-        pipeline_smv(args->tree, &args->relS, chainedbuf_compact1);
+    args->num_results = bts_smv(args->tree, &args->relS, chainedbuf_compact1);
     lock(&g_lock);
     total_num += args->num_results;
     unlock(&g_lock);
@@ -204,7 +249,7 @@ void *bts_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-*/
+
   ////////////////raw GP probe
   /*  chainedtuplebuffer_t *chainedbuf_rp = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
@@ -261,13 +306,14 @@ void *bts_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-
+*/
   ////////////////AMAC probe
   chainedtuplebuffer_t *chainedbuf_amac = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     gettimeofday(&t1, NULL);
-    args->num_results = pipeline_AMAC(args->tree, &args->relS, chainedbuf_amac);
+    args->num_results =
+        search_tree_AMAC(args->tree, &args->relS, chainedbuf_amac);
     lock(&g_lock);
     total_num += args->num_results;
     unlock(&g_lock);
@@ -276,8 +322,7 @@ void *bts_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("--------AMAC pipeline costs time (ms) = %lf\n",
-             deltaT * 1.0 / 1000);
+      printf("--------AMAC tree costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }
@@ -290,7 +335,7 @@ void *bts_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-*/
+
   ////////////////SIMD GP probe
   /*
   chainedtuplebuffer_t *chainedbuf_simd_gp = chainedtuplebuffer_init();
@@ -321,14 +366,13 @@ void *bts_thread(void *param) {
     puts("+++++sleep end  +++++");
   }
 
-
-  ////////////////SIMD AMAC probe
+  */  ////////////////SIMD AMAC probe
   chainedtuplebuffer_t *chainedbuf_simd_amac = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     gettimeofday(&t1, NULL);
     args->num_results =
-        pipeline_simd_amac(args->tree, &args->relS, chainedbuf_simd_amac);
+        bts_simd_amac(args->tree, &args->relS, chainedbuf_simd_amac);
     lock(&g_lock);
     total_num += args->num_results;
     unlock(&g_lock);
@@ -337,8 +381,7 @@ void *bts_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("---SIMD AMAC pipeline costs time (ms) = %lf\n",
-             deltaT * 1.0 / 1000);
+      printf("---SIMD AMAC bts costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }
@@ -357,8 +400,8 @@ void *bts_thread(void *param) {
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     gettimeofday(&t1, NULL);
-    args->num_results = pipeline_simd_amac_raw(args->tree, &args->relS,
-                                               chainedbuf_simd_amac_raw);
+    args->num_results =
+        bts_simd_amac_raw(args->tree, &args->relS, chainedbuf_simd_amac_raw);
     lock(&g_lock);
     total_num += args->num_results;
     unlock(&g_lock);
@@ -379,12 +422,12 @@ void *bts_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-    ////////////////SIMD probe full vectorization
+  ////////////////SIMD probe full vectorization
   chainedtuplebuffer_t *chainedbuf_simd = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
     BARRIER_ARRIVE(args->barrier, rv);
     gettimeofday(&t1, NULL);
-    args->num_results = pipeline_simd(args->tree, &args->relS, chainedbuf_simd);
+    args->num_results = bts_simd(args->tree, &args->relS, chainedbuf_simd);
     lock(&g_lock);
     total_num += args->num_results;
     unlock(&g_lock);
@@ -393,8 +436,7 @@ void *bts_thread(void *param) {
       printf("total result num = %lld\t", total_num);
       gettimeofday(&t2, NULL);
       deltaT = (t2.tv_sec - t1.tv_sec) * 1000000 + t2.tv_usec - t1.tv_usec;
-      printf("--------SIMD pipeline costs time (ms) = %lf\n",
-             deltaT * 1.0 / 1000);
+      printf("--------SIMD bts costs time (ms) = %lf\n", deltaT * 1.0 / 1000);
       total_num = 0;
     }
   }
@@ -407,7 +449,7 @@ void *bts_thread(void *param) {
   if (args->tid == 0) {
     puts("+++++sleep end  +++++");
   }
-*/
+
   //////// raw probe in scalar
   chainedtuplebuffer_t *chainedbuf = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {

@@ -738,7 +738,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
   int64_t matches = 0;
   int32_t new_add = 0, k = 0, done = 0, num, num_temp;
   __mmask8 m_match = 0, m_new_cells = -1, m_valid_bucket = 0,
-           mask[VECTOR_SCALE + 1], m_have_tuple;
+           mask[VECTOR_SCALE + 1];
   __m512i v_offset = _mm512_set1_epi64(0),
           v_base_offset_upper =
               _mm512_set1_epi64(rel->num_tuples * sizeof(tuple_t)),

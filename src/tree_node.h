@@ -26,7 +26,7 @@ typedef struct tnodebuffer_t tnodebuffer_t;
 typedef struct chainedtnodebuffer_t chainedtnodebuffer_t;
 typedef struct tree_t tree_t;
 typedef struct tree_arg_t tree_arg_t;
-
+typedef struct tree_state_t tree_state_t;
 #define TNODEBUFF_NUMTUPLESPERBUF (1024 * 1024)
 struct tnode_t {
   intkey_t key;
@@ -68,6 +68,11 @@ struct tree_arg_t {
   uint64_t timer1, timer2, timer3;
   struct timeval start, end;
 #endif
+};
+struct tree_state_t {
+  int64_t tuple_id;
+  tnode_t *b;
+  int16_t stage;
 };
 static inline tnode_t *nb_next_writepos(chainedtnodebuffer_t *cb) {
   if (cb->writepos == TNODEBUFF_NUMTUPLESPERBUF) {
