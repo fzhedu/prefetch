@@ -18,8 +18,7 @@ void build_tree_st(tree_t *tree, relation_t *rel) {
         if (NULL == node->lnext) {
           new_node = nb_next_writepos(cb);
           new_node->key = tp->key;
-          // new_node->payload = tp->payload;
-          new_node->payload = 0;
+          new_node->payload = tp->payload;
           ++tree->num;
           node->lnext = new_node;
           break;
@@ -30,8 +29,7 @@ void build_tree_st(tree_t *tree, relation_t *rel) {
         if (NULL == node->rnext) {
           new_node = nb_next_writepos(cb);
           new_node->key = tp->key;
-          // new_node->payload = tp->payload;
-          new_node->payload = 0;
+          new_node->payload = tp->payload;
           ++tree->num;
           node->rnext = new_node;
           break;
@@ -39,7 +37,6 @@ void build_tree_st(tree_t *tree, relation_t *rel) {
           node = node->rnext;
         }
       } else {
-        ++node->payload;
         break;
       }
     }
