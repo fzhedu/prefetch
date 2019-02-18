@@ -39,7 +39,7 @@ typedef struct StateSIMD StateSIMD;
 
 #define LOAD_FACTOR 1
 #define ScalarStateSize 30
-#define SIMDStateSize 8
+#define SIMDStateSize 5
 #define SEQ_DIS 30
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
 #define REPEAT_PROBE 2
@@ -48,6 +48,10 @@ typedef struct StateSIMD StateSIMD;
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
 #define SEQPREFETCH 1
+#define A 1
+#define B 10000078
+#define SIMD_A _mm512_set1_epi64(A)
+#define SIMD_B _mm512_set1_epi64(B)
 
 //#define _MM_HINT_T0 0
 #if KNL

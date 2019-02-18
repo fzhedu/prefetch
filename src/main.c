@@ -307,6 +307,8 @@ static struct algo_t algos[] = {{"PRO", PRO},
                                 {"PRH", PRH},
                                 {"PRHO", PRHO},
                                 {"NPO", NPO},
+                                {"PIPELINE", PIPELINE},
+                                {"BTS", BTS},
                                 {"NPO_st", NPO_st}, /* NPO single threaded */
                                 {"GEN", NPO},
                                 {{0}, 0}};

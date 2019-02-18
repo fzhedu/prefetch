@@ -63,12 +63,12 @@ bin_PROGRAMS = mchashjoins
 mchashjoins_SOURCES =  	npj_params.h prj_params.h types.h npj_types.h 	\
 			no_partitioning_join.h no_partitioning_join.c 	\
 			parallel_radix_join.h parallel_radix_join.c   	\
-			no_partitioning_join_simd_prefetching.c \
-			perf_counters.h perf_counters.c			\
-			cpu_mapping.h cpu_mapping.c 			\
+			no_partitioning_join_simd_prefetching.c  tree_binary.c\
+			perf_counters.h perf_counters.c		pipeline_smv.c	\
+			cpu_mapping.h cpu_mapping.c 	pipeline.c		\
 			genzipf.h genzipf.c generator.h generator.c 	\
 			lock.h rdtsc.h task_queue.h barrier.h affinity.h\
-			tuple_buffer.h		prefetch.h			\
+			tuple_buffer.h		prefetch.h		tree_node.h	\
 			main.c 
 
 mchashjoins_LDFLAGS = $(AM_LDFLAGS) $(MYLDFLAGS) -pthread
