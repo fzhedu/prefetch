@@ -28,3 +28,7 @@ compile
 src/core*
 r_skew*
 s_skew*
+core*
+results/
+results*
+*.swp

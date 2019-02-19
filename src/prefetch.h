@@ -34,8 +34,8 @@
 #include "npj_types.h"
 typedef struct amac_state_t scalar_state_t;
 typedef struct StateSIMD StateSIMD;
-#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
-#define LIKELY(expr) __builtin_expect(!!(expr), 1)
+//#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
+//#define LIKELY(expr) __builtin_expect(!!(expr), 1)
 
 #define LOAD_FACTOR 1
 #define ScalarStateSize 30

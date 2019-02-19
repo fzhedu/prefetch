@@ -436,15 +436,11 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
         bucket_t *b = state[k].b;
 //  _mm_lfence();
 //#pragma unroll(2)
-#if MULTI_TUPLE
-        for (int16_t j = 0; j < b->count; ++j) {
-#else
         if (b->count == 0) {
           state[k].stage = 1;
-          ++k;
+         // ++k;
           break;
         }
-#endif
           if (rel->tuples[state[k].tuple_id].key == b->tuples[0].key) {
             ++matches;
 #if 1
@@ -459,9 +455,6 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
                 rel->tuples[state[k].tuple_id].payload; /* S-rid */
 #endif
           }
-#if MULTI_TUPLE
-        }
-#endif
         b = b->next; /* follow overflow pointer */
         if (b) {
           state[k].b = b;
@@ -471,7 +464,7 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
           ++k;
         } else {
           state[k].stage = 1;
-          ++k;
+         // ++k;
         }
       } break;
       default: { ++k; }

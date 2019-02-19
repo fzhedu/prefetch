@@ -92,7 +92,7 @@ int64_t pipeline_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
 #else
         if (b->count == 0) {
           state[k].stage = 1;
-          ++k;
+         // ++k;
           break;
         }
 #endif
@@ -121,7 +121,7 @@ int64_t pipeline_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
           ++k;
         } else {
           state[k].stage = 1;
-          ++k;
+          //++k;
         }
       } break;
       default: { ++k; }
