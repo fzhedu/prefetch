@@ -262,6 +262,8 @@ cpu-mapping.txt
 #include "tuple_buffer.h" /* for materialization */
 #endif
 
+#define MAX_DATA_NUM 650000000
+
 #if !defined(__cplusplus)
 int getopt(int argc, char *const argv[], const char *optstring);
 #endif
@@ -376,7 +378,8 @@ int main(int argc, char **argv) {
   /* to pass information to the create_relation methods */
   numalocalize = cmd_params.basic_numa;
   nthreads = cmd_params.nthreads;
-
+  uint64_t max_num = MAX_DATA_NUM;
+  max_num = cmd_params.r_size > max_num ? cmd_params.r_size : max_num;
   if (cmd_params.loadfileR != NULL) {
     /* load relation from file */
     load_relation(&relR, cmd_params.loadfileR, cmd_params.r_size);
@@ -387,12 +390,11 @@ int main(int argc, char **argv) {
   } else {
     if (cmd_params.r_skew > 0) {
       /* S is skewed */
-      create_relation_zipf(&relR, cmd_params.r_size, cmd_params.r_size,
+      create_relation_zipf(&relR, cmd_params.r_size, max_num,
                            cmd_params.r_skew);
     } else {
       // create_relation_pk(&relR, cmd_params.r_size);
-      parallel_create_relation(&relR, cmd_params.r_size, nthreads,
-                               cmd_params.r_size);
+      parallel_create_relation(&relR, cmd_params.r_size, nthreads, max_num);
     }
   }
   printf("OK \n");
@@ -421,13 +423,12 @@ int main(int argc, char **argv) {
 
     if (cmd_params.s_skew > 0) {
       /* S is skewed */
-      create_relation_zipf(&relS, cmd_params.s_size, cmd_params.r_size,
+      create_relation_zipf(&relS, cmd_params.s_size, max_num,
                            cmd_params.s_skew);
     } else {
       /* S is uniform foreign key */
       // create_relation_fk(&relS, cmd_params.s_size, cmd_params.r_size);
-      parallel_create_relation(&relS, cmd_params.s_size, nthreads,
-                               cmd_params.r_size);
+      parallel_create_relation(&relS, cmd_params.s_size, nthreads, max_num);
     }
   }
   printf("OK \n");
@@ -437,13 +438,13 @@ int main(int argc, char **argv) {
          str_skew_s[STRSIZE] = "", str_size_s[STRSIZE] = "";
     char r_skew[STRSIZE] = "r_skew=", str_size[STRSIZE] = "_size=",
          s_skew[STRSIZE] = "s_skew=";
-    gcvt(cmd_params.r_skew, 8, str_skew_r);
-    gcvt(cmd_params.r_size, 8, str_size_r);
+    gcvt(cmd_params.r_skew, 18, str_skew_r);
+    gcvt(cmd_params.r_size, 18, str_size_r);
     char r_file_name[STRSIZE], s_file_name[STRSIZE];
     strcpy(r_file_name,
            strcat(strcat(strcat(r_skew, str_skew_r), str_size), str_size_r));
-    gcvt(cmd_params.s_skew, 8, str_skew_s);
-    gcvt(cmd_params.s_size, 8, str_size_s);
+    gcvt(cmd_params.s_skew, 18, str_skew_s);
+    gcvt(cmd_params.s_size, 18, str_size_s);
     strcpy(s_file_name,
            strcat(strcat(strcat(s_skew, str_skew_s), str_size), str_size_s));
     printf("r_file_name = %s, s_file_name = %s\n", r_file_name, s_file_name);

@@ -20,7 +20,7 @@
 #endif
 
 #ifndef PAGE_SIZE
-#define PAGE_SIZE (1 << 30)
+#define PAGE_SIZE (1 << 21)
 #endif
 /** Size of system cache line in bytes */
 #ifndef CACHE_LINE_SIZE

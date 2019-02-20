@@ -36,15 +36,14 @@ typedef struct amac_state_t scalar_state_t;
 typedef struct StateSIMD StateSIMD;
 //#define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 //#define LIKELY(expr) __builtin_expect(!!(expr), 1)
-
-#define LOAD_FACTOR 1
 #define ScalarStateSize 30
-#define SIMDStateSize 5
 #define SEQ_DIS 30
+#define PDIS 256
+#define SIMDStateSize 5
+#define LOAD_FACTOR 1
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
 #define REPEAT_PROBE 2
 #define SLEEP_TIME 0
-#define PDIS 256
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
 #define SEQPREFETCH 1

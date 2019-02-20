@@ -32,3 +32,4 @@ core*
 results/
 results*
 *.swp
+*.log
