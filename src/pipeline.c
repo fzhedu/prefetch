@@ -65,7 +65,7 @@ int64_t pipeline_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
           break;
         }
 #if SEQPREFETCH
-        _mm_prefetch((char *)(rel->tuples + cur + SEQ_DIS), _MM_HINT_T0);
+        _mm_prefetch((char *)(rel->tuples + cur) + PDIS, _MM_HINT_T0);
 #endif
         // filter
         if (rel->tuples[cur].key * A < B) {
@@ -92,7 +92,7 @@ int64_t pipeline_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
 #else
         if (b->count == 0) {
           state[k].stage = 1;
-         // ++k;
+          // ++k;
           break;
         }
 #endif

@@ -737,8 +737,9 @@ int64_t probe_simd_amac_compact(hashtable_t *ht, relation_t *rel,
 int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
   int64_t matches = 0;
   int32_t new_add = 0, k = 0, done = 0, num, num_temp;
-  __mmask8 m_match = 0, m_new_cells = -1, m_valid_bucket = 0,
-           mask[VECTOR_SCALE + 1];
+  __attribute__((aligned(64))) __mmask8 m_match = 0, m_new_cells = -1,
+                                        m_valid_bucket = 0,
+                                        mask[VECTOR_SCALE + 1];
   __m512i v_offset = _mm512_set1_epi64(0),
           v_base_offset_upper =
               _mm512_set1_epi64(rel->num_tuples * sizeof(tuple_t)),
@@ -761,7 +762,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
     mask[i] = (1 << i) - 1;
   }
   v_base_offset = _mm512_load_epi64(base_off);
-  StateSIMD state[SIMDStateSize + 1];
+  __attribute__((aligned(64))) StateSIMD state[SIMDStateSize + 1];
   // init # of the state
   for (int i = 0; i <= SIMDStateSize; ++i) {
     state[i].stage = 1;
@@ -772,7 +773,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
   }
   for (uint64_t cur = 0; 1;) {
     k = (k >= SIMDStateSize) ? 0 : k;
-    if (cur >= rel->num_tuples) {
+    if (UNLIKELY(cur >= rel->num_tuples)) {
       if (state[k].m_have_tuple == 0 && state[k].stage != 3) {
         ++done;
         state[k].stage = 3;
@@ -878,7 +879,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
         state[k].m_have_tuple =
             _mm512_kand(_mm512_cmpneq_epi64_mask(state[k].ht_off, v_zero512),
                         state[k].m_have_tuple);
-
+#if 1
         // to scatter join results
         join_res = cb_next_n_writepos(chainedbuf, new_add);
 #if SEQPREFETCH
@@ -893,7 +894,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
         v_write_index = _mm512_add_epi64(v_write_index, v_word_size);
         _mm512_mask_i64scatter_epi64(((void *)join_res), m_match, v_write_index,
                                      v_right_payload, 1);
-
+#endif
         num = _mm_popcnt_u32(state[k].m_have_tuple);
 #if 1
         if (num == VECTOR_SCALE) {
@@ -909,7 +910,7 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
         } else
 #endif
         {
-          if ((done < SIMDStateSize)) {
+          if (LIKELY(done < SIMDStateSize)) {
             num_temp = _mm_popcnt_u32(state[SIMDStateSize].m_have_tuple);
             if (num + num_temp < VECTOR_SCALE) {
               // compress v
@@ -934,7 +935,6 @@ int64_t smv_probe(hashtable_t *ht, relation_t *rel, void *output) {
               state[SIMDStateSize].m_have_tuple = mask[num + num_temp];
               state[k].m_have_tuple = 0;
               state[k].stage = 1;
-
             } else {
               // expand temp -> v
               state[k].ht_off = _mm512_mask_expand_epi64(

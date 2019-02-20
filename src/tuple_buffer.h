@@ -16,7 +16,7 @@
 
 #include "types.h"
 
-#define CHAINEDBUFF_NUMTUPLESPERBUF (1024 * 1024)
+#define CHAINEDBUFF_NUMTUPLESPERBUF (64 * 1024)
 
 /** If rid-pairs are coming from a sort-merge join then 1, otherwise for hash
     joins it is always 0 since output is not sorted. */

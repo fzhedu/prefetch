@@ -88,17 +88,16 @@ int64_t search_tree_AMAC(tree_t *tree, relation_t *rel, void *output) {
         if (cur >= rel->num_tuples) {
           ++done;
           state[k].stage = 3;
-          ++k;
           break;
         }
 #if SEQPREFETCH
-        _mm_prefetch((char *)(rel->tuples + cur + SEQ_DIS), _MM_HINT_T0);
+        _mm_prefetch((char *)(rel->tuples + cur) + PDIS, _MM_HINT_T0);
 #endif
         state[k].b = tree->first_node;
         state[k].tuple_id = cur;
         state[k].stage = 0;
         ++cur;
-        --k;
+        _mm_prefetch((char *)(tree->first_node), _MM_HINT_T0);
       } break;
       case 0: {
         tp = rel->tuples + state[k].tuple_id;
@@ -112,8 +111,7 @@ int64_t search_tree_AMAC(tree_t *tree, relation_t *rel, void *output) {
           joinres->payload = tp->payload; /* S-rid */
 #endif
           state[k].stage = 1;
-          _mm_prefetch((char *)(tree->first_node), _MM_HINT_T0);
-
+          --k;
         } else {
           if (tp->key < node->key) {
             node = node->lnext;
@@ -124,8 +122,8 @@ int64_t search_tree_AMAC(tree_t *tree, relation_t *rel, void *output) {
             _mm_prefetch((char *)(node), _MM_HINT_T0);
             state[k].b = node;
           } else {
-            _mm_prefetch((char *)(tree->first_node), _MM_HINT_T0);
             state[k].stage = 1;
+            --k;
           }
         }
       } break;

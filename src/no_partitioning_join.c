@@ -290,7 +290,7 @@ int64_t probe_hashtable_raw_prefetch(hashtable_t *ht, relation_t *rel,
 
   for (i = 0; i < rel->num_tuples; i++) {
 #ifdef PREFETCH_NPJ
-    _mm_prefetch((char *)(rel->tuples + prefetch_index + SEQ_DIS), _MM_HINT_T0);
+    _mm_prefetch((char *)(rel->tuples + prefetch_index) + PDIS, _MM_HINT_T0);
     if (prefetch_index < rel->num_tuples) {
       intkey_t idx_prefetch =
           HASH(rel->tuples[prefetch_index++].key, hashmask, skipbits);
@@ -346,7 +346,7 @@ int64_t probe_gp(hashtable_t *ht, relation_t *rel, void *output) {
   for (uint64_t cur = 0; cur < rel->num_tuples;) {
     // step 1: load tuples from probing table
     for (k = 0; (k < ScalarStateSize) && (cur < rel->num_tuples); ++k) {
-      _mm_prefetch((char *)(rel->tuples + cur + SEQ_DIS), _MM_HINT_T0);
+      _mm_prefetch((char *)(rel->tuples + cur) + PDIS, _MM_HINT_T0);
 
       intkey_t idx = HASH(rel->tuples[cur].key, hashmask, skipbits);
       state[k].b = ht->buckets + idx;
@@ -408,7 +408,7 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
   for (int i = 0; i < ScalarStateSize; ++i) {
     state[i].stage = 1;
   }
-  for (uint64_t cur = 0; (cur < rel->num_tuples) || (done < ScalarStateSize);) {
+  for (uint64_t cur = 0; (done < ScalarStateSize);) {
     k = (k >= ScalarStateSize) ? 0 : k;
 
     switch (state[k].stage) {
@@ -416,11 +416,10 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
         if (cur >= rel->num_tuples) {
           ++done;
           state[k].stage = 3;
-          ++k;
           break;
         }
 #if SEQPREFETCH
-        _mm_prefetch((char *)(rel->tuples + cur + SEQ_DIS), _MM_HINT_T0);
+        _mm_prefetch(((char *)(rel->tuples + cur) + PDIS), _MM_HINT_T0);
 #endif
         intkey_t idx = HASH(rel->tuples[cur].key, hashmask, skipbits);
         state[k].b = ht->buckets + idx;
@@ -430,45 +429,41 @@ int64_t probe_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
         state[k].tuple_id = cur;
         state[k].stage = 0;
         ++cur;
-        ++k;
       } break;
       case 0: {
         bucket_t *b = state[k].b;
-//  _mm_lfence();
-//#pragma unroll(2)
+        //  _mm_lfence();
+        //#pragma unroll(2)
         if (b->count == 0) {
           state[k].stage = 1;
-         // ++k;
+          --k;
           break;
         }
-          if (rel->tuples[state[k].tuple_id].key == b->tuples[0].key) {
-            ++matches;
+        if (rel->tuples[state[k].tuple_id].key == b->tuples[0].key) {
+          ++matches;
 #if 1
 
-            /* copy to the result buffer */
-            tuple_t *joinres = cb_next_writepos(chainedbuf);
+          /* copy to the result buffer */
+          tuple_t *joinres = cb_next_writepos(chainedbuf);
 #if SEQPREFETCH
-            _mm_prefetch((char *)(((void *)joinres) + PDIS), _MM_HINT_T0);
+          _mm_prefetch((char *)(((void *)joinres) + PDIS), _MM_HINT_T0);
 #endif
-            joinres->key = b->tuples[0].payload; /* R-rid */
-            joinres->payload =
-                rel->tuples[state[k].tuple_id].payload; /* S-rid */
+          joinres->key = b->tuples[0].payload;                       /* R-rid */
+          joinres->payload = rel->tuples[state[k].tuple_id].payload; /* S-rid */
 #endif
-          }
+        }
         b = b->next; /* follow overflow pointer */
         if (b) {
           state[k].b = b;
           // __builtin_prefetch(state[k].b, 0, 1);
           _mm_prefetch((char *)(state[k].b), _MM_HINT_T0);
-
-          ++k;
         } else {
           state[k].stage = 1;
-         // ++k;
+          --k;
         }
       } break;
-      default: { ++k; }
     }
+    ++k;
   }
 
   return matches;
@@ -626,7 +621,7 @@ void build_hashtable_mt(hashtable_t *ht, relation_t *rel,
  * @return
  */
 volatile char g_lock;
-uint64_t total_num = 0;
+volatile uint64_t total_num = 0;
 
 void *npo_thread(void *param) {
   int rv;

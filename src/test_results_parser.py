@@ -13,7 +13,7 @@ def parser(i_file, o_file,repeat_num):
 #		csv_writer=csv.writer(open('results.csv','a'))
 		csv_writer=csv.writer(open(o_file,'a'))
 		count=0
-		results=[['dis','statesize','thread_num','r_size','s_size','r_skew','s_skew',' ','SMV','AMAC','SIMD AMAC','RAWSIMD','SIMD','RAW']]
+		results=[['dis','SIMDstatesize','scalarstatesize','thread_num','r_size','s_size','r_skew','s_skew',' ','SMV','AMAC','SIMD AMAC','RAWSIMD','SIMD','RAW']]
 		result_row=[]
 		numbers=[]
 		for line in lines:
@@ -24,7 +24,7 @@ def parser(i_file, o_file,repeat_num):
 		                        csv_writer.writerow(arr)
 				csv_writer.writerow([])
 				csv_writer.writerow([])
-				results=[['dis','statesize','thread_num','r_size','s_size','r_skew','s_skew',' ','SMV','AMAC','SIMD AMAC','RAWSIMD','SIMD','RAW']]
+				results=[['dis','SIMDstatesize','scalarstatesize','thread_num','r_size','s_size','r_skew','s_skew',' ','SMV','AMAC','SIMD AMAC','RAWSIMD','SIMD','RAW']]
 			if line.startswith('ARGS'):
 				args=line.strip().split(' ')
 				result_row.append(args[2])
@@ -34,6 +34,7 @@ def parser(i_file, o_file,repeat_num):
 				result_row.append(args[10])
 				result_row.append(args[12])
 				result_row.append(args[14])
+				result_row.append(args[16])
 				result_row.append(' ')
 			if line.startswith('total'):
 #				print(line.split(' ')[-1].strip())
