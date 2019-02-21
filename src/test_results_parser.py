@@ -15,9 +15,11 @@ def parser(i_file, o_file,repeat_num):
 		count=0
 		results=[['dis','SIMDstatesize','scalarstatesize','thread_num','r_size','s_size','r_skew','s_skew',' ','SMV','AMAC','SIMD AMAC','RAWSIMD','SIMD','RAW']]
 		result_row=[]
-		numbers=[]
+		numbers=[]	
+		starts=False
 		for line in lines:
 			if line.startswith('!!!'):
+				starts=True
                 		results=map(list,zip(*results))
 		                for arr in results:
 #               		        print(arr)
@@ -64,10 +66,11 @@ def parser(i_file, o_file,repeat_num):
 #							csv_writer.writerow(result_row)
 							result_row=[]
 							count=0
-#		results=map(list,zip(*results))
-#		for arr in results:
-#			print(arr)
-#			csv_writer.writerow(arr)
+		if not starts:
+			results=map(list,zip(*results))
+			for arr in results:
+				print(arr)
+				csv_writer.writerow(arr)
 	finally:
 		if f:
 			f.close()
