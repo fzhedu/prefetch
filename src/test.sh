@@ -192,10 +192,12 @@ function gen_data() {
 	# make sure |r_size_set| < 10
 	t=0
 	for ((i=0;i<${#r_size_set[@]};i++)) do 
-		for ((k=0;k<${#r_skew_set[@]};k++)) do
-			numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=${r_skew_set[k]} --s-skew=${r_skew_set[k]} &
-			((t++))
-		done;		
+		numactl -C 0-16 ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=0 --s-skew=0 &
+		((t++))
+		numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=0.5 --s-skew=0.5 &
+		((t++))
+		numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=1 --s-skew=1 
+		((t++))
 	done;
 }		
 
