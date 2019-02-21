@@ -24,7 +24,7 @@ static int node_mapping[MAX_NODES];
 static int init_mappings_from_file() {
   FILE* cfg;
   int i;
-
+#if 0
   cfg = fopen(CUSTOM_CPU_MAPPING, "r");
   if (cfg != NULL) {
     if (fscanf(cfg, "%d", &max_cpus) <= 0) {
@@ -40,7 +40,7 @@ static int init_mappings_from_file() {
     fclose(cfg);
     return 1;
   }
-
+#endif
   /* perror("Custom cpu mapping file not found!\n"); */
   return 0;
 }

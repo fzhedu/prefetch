@@ -39,10 +39,10 @@ function reset_default_param() {
 	r_size_set=("64M")
 	s_size_set=("500M")
 	#data skew
-	r_skew_set=(0.5)
-	s_skew_set=(0.5)
+	r_skew_set=(0 0.5 1)
+	s_skew_set=(0 0.5 1)
 	#scalability
-	thread_nums=(1)
+	thread_nums=(8)
 
 	# range=1~40, +4 scalarstatesize
 	sstatestart=30
@@ -174,6 +174,29 @@ function expr_skew() {
 	s_skew_set=(0 0.5 1)
 	file_loop
 	python test_results_merge.py $dir_name merged_results.csv
+}
+
+function expr_data_size() {
+	reset_default_param
+	dir_name="results_data_size"_$(date +%F-%T)
+	mkdir $dir_name
+	thread_nums=(8)
+	r_size_set=("16K" "64K" "256K" "512K" "1M" "16M" "64M")
+	file_loop
+	python test_results_merge.py $dir_name merged_results.csv
+}
+function gen_data() {
+	reset_default_param
+	thread_nums=(18)
+	r_size_set=("16384" "65536" "262144" "524288" "1048576" "16777216")
+	# make sure |r_size_set| < 10
+	t=0
+	for ((i=0;i<${#r_size_set[@]};i++)) do 
+		for ((k=0;k<${#r_skew_set[@]};k++)) do
+			numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=${r_skew_set[k]} --s-skew=${r_skew_set[k]} &
+			((t++))
+		done;		
+	done;
 }		
 
 echo "What is the processor ? SKX : KNL?"
@@ -188,27 +211,33 @@ else
 fi
 
 echo "input expr name : 
-G: group size
+GROUP: group size
 D: prefetch distance
-S: scalability
-K: sKew
+SCALE: scalability
+SKEW: data skew
+GEN: generate data
+DATA: data size
 ALL: all experiments
 ------------------"
 read expr_name
 
 if [[ ${expr_name} == 'D' ]]; then 
 	expr_pdis
-elif [[ ${expr_name} == 'G' ]]; then	
+elif [[ ${expr_name} == 'GROUP' ]]; then	
 	expr_group_size
-elif [[ ${expr_name} == 'S' ]]; then	
+elif [[ ${expr_name} == 'GEN' ]]; then	
+	gen_data
+elif [[ ${expr_name} == 'DATA' ]]; then	
+	expr_data_size
+elif [[ ${expr_name} == 'SCALE' ]]; then	
 	expr_scale
-elif [[ ${expr_name} == 'K' ]]; then	
+elif [[ ${expr_name} == 'SKEW' ]]; then	
 	expr_skew
 elif [[ ${expr_name} == 'ALL' ]]; then
 	expr_group_size
-	expr_pdis
 	expr_scale
 	expr_skew
+	expr_data_size
 else 
 	echo -n ${expr_name}
 	echo " not found"

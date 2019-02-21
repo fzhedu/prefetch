@@ -324,7 +324,7 @@ int main(int argc, char **argv) {
   relation_t relR;
   relation_t relS;
   result_t *results;
-
+#if 0
   /* start initially on CPU-0 */
   cpu_set_t set;
   CPU_ZERO(&set);
@@ -332,7 +332,7 @@ int main(int argc, char **argv) {
   if (sched_setaffinity(0, sizeof(set), &set) < 0) {
     perror("sched_setaffinity");
   }
-
+#endif
   /* Command line parameters */
   param_t cmd_params;
 
