@@ -9,25 +9,26 @@ typedef struct StateSIMD StateSIMD;
 #define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 #define LIKELY(expr) __builtin_expect(!!(expr), 1)
 
-#define ScalarStateSize 30
-#define PDIS 1280
-#define SIMDStateSize 5
+#define ScalarStateSize 1
+#define PDIS 0
+#define SIMDStateSize 1
 
 #define LOAD_FACTOR 1
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
-#define REPEAT_PROBE 2
+#define REPEAT_PROBE 3
 #define SLEEP_TIME 0
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
-#define SEQPREFETCH 1
+#define SEQPREFETCH PDIS
 #define A 1
-#define B 10000078
+#define B 30000056
 #define SIMD_A _mm512_set1_epi64(A)
 #define SIMD_B _mm512_set1_epi64(B)
 
 #if KNL
 #define _mm512_mullo_epi64(a, b) _mm512_mullo_epi32(a, b)
 #endif
+
 //#define _mm512_mask_i64scatter_epi64(addr, mask, idx, v, scale) \
   _mm512_mask_compressstoreu_epi64(addr, mask, v);
 struct amac_state_t {

@@ -139,7 +139,7 @@ int64_t pipeline_AMAC(hashtable_t *ht, relation_t *rel, void *output) {
  * @return
  */
 volatile char g_lock;
-uint64_t total_num;
+volatile uint64_t total_num;
 void *pipeline_thread(void *param) {
   int rv;
   total_num = 0;
@@ -557,10 +557,11 @@ result_t *PIPELINE(relation_t *relR, relation_t *relS, int nthreads) {
 
     DEBUGMSG(1, "Assigning thread-%d to CPU-%d\n", i, cpu_idx);
 
+#if AFFINITY
     CPU_ZERO(&set);
     CPU_SET(cpu_idx, &set);
     pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &set);
-
+#endif
     args[i].tid = i;
     args[i].ht = ht;
     args[i].barrier = &barrier;

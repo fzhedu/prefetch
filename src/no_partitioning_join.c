@@ -1030,11 +1030,11 @@ result_t *NPO(relation_t *relR, relation_t *relS, int nthreads) {
     int cpu_idx = get_cpu_id(i);
 
     DEBUGMSG(1, "Assigning thread-%d to CPU-%d\n", i, cpu_idx);
-
+#if AFFINITY
     CPU_ZERO(&set);
     CPU_SET(cpu_idx, &set);
     pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &set);
-
+#endif
     args[i].tid = i;
     args[i].ht = ht;
     args[i].barrier = &barrier;

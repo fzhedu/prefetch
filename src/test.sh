@@ -6,20 +6,20 @@ processor="SKY"
 r_size_set=("64M")
 s_size_set=("500M")
 #data skew
-r_skew_set=(0.5)
-s_skew_set=(0.5)
+r_skew_set=(0 0.5 1)
+s_skew_set=(0 0.5 1)
 #scalability
-thread_nums=(1)
+thread_nums=(8)
 
 # range=1~40, +4 scalarstatesize
-sstatestart=30
-sstateend=30
+sstatestart=20
+sstateend=20
 # range=1~20, +1 simdstatesize=5
 statestart=5
 stateend=5
 # paramter 2: sequential prefetch distance
-disstart=640
-disend=640
+disstart=320
+disend=320
 
 # paramter 3:application name
 app="NPO"
@@ -29,10 +29,20 @@ app="NPO"
 dir_name="results"
 
 #keep the same with REPEAT_PROBE
-repeat=2
+repeat=3
 
-numa_nid="0"
-numa_mid="0"
+#set repeat time
+sed -i "/#define\ REPEAT_PROBE/c\#define\ REPEAT_PROBE\ ${repeat}" prefetch.h
+
+numa_config="-m $numa_mid -C 0-7"
+
+SKX_numa_config_set=("-m $numa_mid -C 0" "-m $numa_mid -C 0,2,4,6" "-m $numa_mid -C 0,2,4,6,8,10,12,14" " -C 0,2,4,6,8,10,12,14,1,3,5,7" "-C 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15"  "-m $numa_mid -C 0,16" "-m $numa_mid -C 0,16,2,18,4,20,6,22" "-m $numa_mid -C 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30" " -C 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30,1,17,3,19,5,21,7,23" "-C 0-31")
+SKX_numa_config_set_num=(1 4 8 12 16 2 8 16 24 32)
+
+KNL_numa_config_set=("-m $numa_mid -C 0" "-m $numa_mid -C 0-15" "-m $numa_mid -C 0-31" "-m $numa_mid -C 0-47" "-m $numa_mid -C 0-63" "-m $numa_mid -C 0,64" "-m $numa_mid -C 0-15,64-79" "-m $numa_mid -C 0-31,64-95" "-m $numa_mid -C 0-47,64-111" "-m $numa_mid -C 0-63,64-127" "-m $numa_mid -C 0,64,128,192" "-m $numa_mid -C 0-15,64-79,128-143,192-207" "-m $numa_mid -C 0-31,64-95,128-159,192-223" "-m $numa_mid -C 0-47,64-111,128-175,192-239" "-m $numa_mid -C 0-255")
+KNL_numa_config_set_num=(1 16 32 48 64 2 32 64 96 128 4 64 128 192 256)
+
+sudo_passward="claims"
 
 function reset_default_param() {
 	#data size
@@ -45,14 +55,14 @@ function reset_default_param() {
 	thread_nums=(8)
 
 	# range=1~40, +4 scalarstatesize
-	sstatestart=30
-	sstateend=30
+	sstatestart=20
+	sstateend=20
 	# range=1~20, +1 simdstatesize=5
 	statestart=5
 	stateend=5
 	# paramter 2: sequential prefetch distance
-	disstart=640
-	disend=640
+	disstart=320
+	disend=320
 
 	# paramter 3:application name
 	app="NPO"
@@ -61,11 +71,12 @@ function reset_default_param() {
 
 	dir_name="results"
 
-	#keep the same with REPEAT_PROBE
-	repeat=2
+	if [[ $processor == "SKX" ]]; then
+		numa_config="-N 0 -m 0 -C 0,2,4,6,8,10,12,14"
+	else
+		numa_config="-m $numa_mid -C 0-7"
+	fi
 
-	numa_nid="0"
-	numa_mid="0"
 }
 
 function run_a_cycle(){
@@ -74,7 +85,8 @@ function run_a_cycle(){
 		for ((i=0;i<${#r_size_set[@]};i++)) do
 			for ((j=0;j<${#s_size_set[@]};j++)) do
 				for ((k=0;k<${#r_skew_set[@]};k++)) do
-					for ((l=0;l<${#s_skew_set[@]};l++)) do
+#					for ((l=0;l<${#s_skew_set[@]};l++)) do
+						l=$k
 						echo "thread_num: ${thread_nums[t]}"
 						echo "r_size: ${r_size_set[i]}"
 						echo "s_size: ${s_size_set[j]}"
@@ -82,12 +94,9 @@ function run_a_cycle(){
 						echo "s_skew: ${s_skew_set[l]}"
 						#########################################
 						echo "ARGS dis: $2 SIMDstatesize: $3 scalarstatesize: $4 thread_num: ${thread_nums[t]} r_size: ${r_size_set[i]} s_size: ${s_size_set[j]} r_skew: ${r_skew_set[k]} s_skew: ${s_skew_set[l]}" >> $1
-						if [[ $processor == "SKX" && $t >16 ]]; then
-							numa_nid="0,1"
-							numa_mid="0,1"	
-						fi						
-						time HUGETLB_MORECORE=yes LD_PRELOAD=$HUGEPAGE_HOME/libhugetlbfs.so numactl -N ${numa_nid} -m ${numa_mid}  ./mchashjoins -a $app -n ${thread_nums[t]} --r-file=r_skew=${r_skew_set[k]}_size=${r_size_set[i]} --s-file=s_skew=${s_skew_set[l]}_size=${s_size_set[j]}_max=${r_size_set[i]}  >> $1
-					done;
+						echo "time  numactl  ${numa_config}  ./mchashjoins -a $app -n ${thread_nums[t]} --r-file=r_skew=${r_skew_set[k]}_size=${r_size_set[i]} --s-file=s_skew=${s_skew_set[l]}_size=${s_size_set[j]}_max=${r_size_set[i]}"
+						time  numactl  ${numa_config}  ./mchashjoins -a $app -n ${thread_nums[t]} --r-file=r_skew=${r_skew_set[k]}_size=${r_size_set[i]} --s-file=s_skew=${s_skew_set[l]}_size=${s_size_set[j]}_max=${r_size_set[i]}  >> $1
+#					done;
 				done;
 			done;
 		done;
@@ -98,7 +107,7 @@ function file_loop() {
 	for((pdis=$disstart;pdis<=$disend;pdis+=64)) do
 		#############修改prefetch.h文件##################
 		sed -i "/#define\ PDIS/c\#define\ PDIS\ ${pdis}" prefetch.h
-		for((scalarstatesize=$sstatestart,simdstatesize=$statestart;scalarstatesize<=$sstateend;scalarstatesize+=2,simdstatesize+=1)) do
+		for((scalarstatesize=$sstatestart,simdstatesize=$statestart;scalarstatesize<=$sstateend;scalarstatesize+=3,simdstatesize+=1)) do
 		        output_file=${dir_name}/${app}_pdis_${pdis}_simdstatesize_${simdstatesize}_scalarstatesize_${scalarstatesize}.txt
 		        echo $output_file
 		        #############修改prefetch.h文件##############
@@ -128,9 +137,9 @@ function expr_group_size() {
 	reset_default_param
 	# set paramaters for this experiment
 	sstatestart=1
-	sstateend=50
+	sstateend=30
 	statestart=1
-	stateend=30
+	stateend=10
 
 	# paramter 3:application name
 	dir_name="results_group"_$(date +%F-%T)
@@ -145,7 +154,7 @@ function expr_pdis() {
 	# set parameters for this experiemnt 
 	# paramter 2: sequential prefetch distance
 	disstart=0
-	disend=1280
+	disend=512
 	thread_nums=(8)
 	dir_name="results_pdis"_$(date +%F-%T)
 
@@ -158,11 +167,18 @@ function expr_scale() {
 	dir_name="results_scale"_$(date +%F-%T)
 	mkdir $dir_name
 	if [[ $processor == "SKX" ]]; then
-		thread_nums=(1 4 8 16 24 32)
+		for ((ct=0;ct<${#SKX_numa_config_set[@]};ct++)) do
+			numa_config=${SKX_numa_config_set[ct]}
+			thread_nums=(${SKX_numa_config_set_num[ct]})
+			file_loop
+		done;
 	else
-		thread_nums=(1 8 32 128 192 256)
-	fi
-	file_loop
+		for ((ct=0;ct<${#KNL_numa_config_set[@]};ct++)) do
+			numa_config=${KNL_numa_config_set[ct]}
+			thread_nums=(${KNL_numa_config_set_num[ct]})
+			file_loop
+		done;
+	fi	
 	python test_results_merge.py $dir_name merged_results.csv
 }
 function expr_skew() {
@@ -185,9 +201,84 @@ function expr_data_size() {
 	file_loop
 	python test_results_merge.py $dir_name merged_results.csv
 }
+
+function expr_huge_page() {
+	reset_default_param
+	dir_name="results_huge_disable"_$(date +%F-%T)
+	mkdir $dir_name
+
+	# disable huge pages
+sudo -S su << EOF
+$sudo_passward
+	echo never > /sys/kernel/mm/transparent_hugepage/defrag
+	echo never > /sys/kernel/mm/transparent_hugepage/enabled
+EOF
+	echo "##after disable##"
+	# comare with expr_skew under enabling huge pages
+	cat /sys/kernel/mm/transparent_hugepage/defrag 
+	cat /sys/kernel/mm/transparent_hugepage/enabled 
+	
+	r_skew_set=(0 0.5 1)
+	s_skew_set=(0 0.5 1)
+	file_loop
+	python test_results_merge.py $dir_name merged_results.csv
+
+	# enalbe huge pages
+sudo -S su << EOF
+$sudo_passward
+	echo always > /sys/kernel/mm/transparent_hugepage/enabled
+	echo always > /sys/kernel/mm/transparent_hugepage/defrag
+EOF
+	echo "##re enable##"
+	# comare with expr_skew under enabling huge pages
+	cat /sys/kernel/mm/transparent_hugepage/defrag 
+	cat /sys/kernel/mm/transparent_hugepage/enabled 
+}
+
+function expr_smt() {
+	reset_default_param
+	dir_name="results_smt"_$(date +%F-%T)
+	mkdir $dir_name
+	if [[ $processor == "SKX" ]]; then
+		ct=0
+		numa_config=${SKX_numa_config_set[ct]}
+		thread_nums=(${SKX_numa_config_set_num[ct]})
+		file_loop
+		ct=5
+		sstatestart=1
+		sstateend=1
+		statestart=1
+		stateend=1
+		disstart=0
+		disend=0
+		numa_config=${SKX_numa_config_set[ct]}
+		thread_nums=(${SKX_numa_config_set_num[ct]})
+		file_loop		
+		
+	else
+		# one physical core with optimal group size
+		ct=0
+		numa_config=${KNL_numa_config_set[ct]}
+		thread_nums=(${KNL_numa_config_set_num[ct]})
+		file_loop
+		# one physical core with SMT, but withou SMV
+		ct=10
+		sstatestart=1
+		sstateend=1
+		statestart=1
+		stateend=1
+		disstart=0
+		disend=0
+		numa_config=${KNL_numa_config_set[ct]}
+		thread_nums=(${KNL_numa_config_set_num[ct]})
+		file_loop
+	fi	
+	python test_results_merge.py $dir_name merged_results.csv
+}
+
 function gen_data() {
 	reset_default_param
-	thread_nums=(18)
+	thread_nums=(8)
 	r_size_set=("16384" "65536" "262144" "524288" "1048576" "16777216")
 	# make sure |r_size_set| < 10
 	t=0
@@ -199,6 +290,21 @@ function gen_data() {
 		numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=1 --s-skew=1 
 		((t++))
 	done;
+}
+function run_all() {
+	expr_group_size
+	expr_pdis
+	expr_scale
+	expr_skew
+	expr_data_size
+	expr_smt
+	expr_huge_page
+}
+function expr_apps() {
+	run_all
+
+	app="BTS"
+	run_all
 }		
 
 echo "What is the processor ? SKX : KNL?"
@@ -211,19 +317,31 @@ else
 	echo "the processor is $processor, but invalid"
 	exit
 fi
+if [[ $processor == "KNL" ]]; then
+	sudo_passward="hsdzhfang"
+else
+	sudo_passward="claims"
+	numa_config="-N 0 -m 0 -C 0,2,4,6,8,10,12,14"
+fi
 
 echo "input expr name : 
 GROUP: group size
-D: prefetch distance
+DIS: prefetch distance
 SCALE: scalability
 SKEW: data skew
 GEN: generate data
 DATA: data size
+PAGE: huge page
+SMT: smt
+APP: all applications, default NPO
 ALL: all experiments
 ------------------"
 read expr_name
 
-if [[ ${expr_name} == 'D' ]]; then 
+#sudo su << EOF
+#EOF
+
+if [[ ${expr_name} == 'DIS' ]]; then 
 	expr_pdis
 elif [[ ${expr_name} == 'GROUP' ]]; then	
 	expr_group_size
@@ -235,11 +353,20 @@ elif [[ ${expr_name} == 'SCALE' ]]; then
 	expr_scale
 elif [[ ${expr_name} == 'SKEW' ]]; then	
 	expr_skew
+elif [[ ${expr_name} == 'PAGE' ]]; then	
+	expr_huge_page
+elif [[ ${expr_name} == 'SMT' ]]; then	
+	expr_smt
+elif [[ ${expr_name} == 'APP' ]]; then	
+	expr_apps
 elif [[ ${expr_name} == 'ALL' ]]; then
 	expr_group_size
+	expr_pdis
 	expr_scale
 	expr_skew
 	expr_data_size
+	expr_smt
+	expr_huge_page
 else 
 	echo -n ${expr_name}
 	echo " not found"

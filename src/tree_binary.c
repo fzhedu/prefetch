@@ -538,10 +538,11 @@ result_t *BTS(relation_t *relR, relation_t *relS, int nthreads) {
 
     DEBUGMSG(1, "Assigning thread-%d to CPU-%d\n", i, cpu_idx);
 
+#if AFFINITY
     CPU_ZERO(&set);
     CPU_SET(cpu_idx, &set);
     pthread_attr_setaffinity_np(&attr, sizeof(cpu_set_t), &set);
-
+#endif
     args[i].tid = i;
     args[i].tree = tree;
     args[i].barrier = &barrier;
