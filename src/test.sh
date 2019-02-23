@@ -167,14 +167,14 @@ function expr_scale() {
 		for ((ct=0;ct<${#SKX_core_set[@]};ct++)) do
 			core_set=${SKX_core_set[ct]}
 			thread_nums=(${SKX_core_set_num[ct]})
-			sed -in "1s/.*/$core_set/" cpu-mapping.txt
+			sed -i "1s/.*/$core_set/" cpu-mapping.txt
 			file_loop
 		done;
 	else
 		for ((ct=0;ct<${#KNL_core_set[@]};ct++)) do
 			core_set=${KNL_core_set[ct]}
 			thread_nums=(${KNL_core_set_num[ct]})
-			sed -in "1s/.*/$core_set/" cpu-mapping.txt
+			sed -i "1s/.*/$core_set/" cpu-mapping.txt
 			file_loop
 		done;
 	fi	
@@ -242,7 +242,7 @@ function expr_smt() {
 		ct=0
 		core_set=${SKX_core_set[ct]}
 		thread_nums=(${SKX_core_set_num[ct]})
-		sed -in "1s/.*/$core_set/" cpu-mapping.txt
+		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 		ct=5
 		sstatestart=1
@@ -253,7 +253,7 @@ function expr_smt() {
 		disend=0
 		core_set=${SKX_core_set[ct]}
 		thread_nums=(${SKX_core_set_num[ct]})
-		sed -in "1s/.*/$core_set/" cpu-mapping.txt
+		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop		
 		
 	else
@@ -261,7 +261,7 @@ function expr_smt() {
 		ct=0
 		core_set=${KNL_core_set[ct]}
 		thread_nums=(${KNL_core_set_num[ct]})
-		sed -in "1s/.*/$core_set/" cpu-mapping.txt
+		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 		# one physical core with SMT, but withou SMV
 		ct=10
@@ -273,7 +273,7 @@ function expr_smt() {
 		disend=0
 		core_set=${KNL_core_set[ct]}
 		thread_nums=(${KNL_core_set_num[ct]})
-		sed -in "1s/.*/$core_set/" cpu-mapping.txt
+		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 	fi	
 	python test_results_merge.py $dir_name merged_results.csv
@@ -340,7 +340,7 @@ else
 	core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
 fi
 
-sed -in "1s/.*/$core_set/" cpu-mapping.txt
+sed -i "1s/.*/$core_set/" cpu-mapping.txt
 
 echo "input expr name : 
 GROUP: group size

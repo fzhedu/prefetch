@@ -40,7 +40,7 @@ static int init_mappings_from_file() {
     } else {  // -4 0-3,
       max_cpus = -max_cpus;
       for (i = 0; i < max_cpus;) {
-        if (fscanf(cfg, "%d,%d,", &begin, &end) <= 0) {
+        if (fscanf(cfg, "%d-%d,", &begin, &end) <= 0) {
           perror("Could not parse input!\n");
         } else {
           for (j = begin; j <= end; ++j) {
@@ -54,7 +54,7 @@ static int init_mappings_from_file() {
     for (i = 0; i < max_cpus; ++i) {
       printf("%d\t", node_mapping[i]);
     }
-    puts("end!");
+    puts("end");
     fclose(cfg);
     return 1;
   }
