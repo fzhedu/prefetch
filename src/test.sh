@@ -53,8 +53,8 @@ function reset_default_param() {
 	r_size_set=("64M")
 	s_size_set=("500M")
 	#data skew
-	r_skew_set=(0 0.5 1)
-	s_skew_set=(0 0.5 1)
+	r_skew_set=(0 1)
+	s_skew_set=(0 1)
 	#scalability
 	thread_nums=(8)
 
@@ -74,6 +74,14 @@ function reset_default_param() {
 	#app="BTS"
 
 	dir_name="results"
+
+	if [[ $processor == "KNL" ]]; then
+		core_set="-64 0-63,"
+	else
+		core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
+	fi
+	sed -i "1s/.*/$core_set/" cpu-mapping.txt
+
 }
 
 function run_a_cycle(){
@@ -152,7 +160,6 @@ function expr_pdis() {
 	# paramter 2: sequential prefetch distance
 	disstart=0
 	disend=512
-	thread_nums=(8)
 	dir_name="results_pdis"_$(date +%F-%T)
 
 	mkdir $dir_name
@@ -184,7 +191,6 @@ function expr_skew() {
 	reset_default_param
 	dir_name="results_skew"_$(date +%F-%T)
 	mkdir $dir_name
-	thread_nums=(8)
 	r_skew_set=(0 0.5 1)
 	s_skew_set=(0 0.5 1)
 	file_loop
@@ -195,17 +201,18 @@ function expr_data_size() {
 	reset_default_param
 	dir_name="results_data_size"_$(date +%F-%T)
 	mkdir $dir_name
-	thread_nums=(8)
+
 	r_size_set=("16K" "64K" "256K" "512K" "1M" "16M" "64M")
 	file_loop
 	python test_results_merge.py $dir_name merged_results.csv
 }
-
+##compare with skew
 function expr_huge_page() {
 	reset_default_param
 	dir_name="results_huge_disable"_$(date +%F-%T)
 	mkdir $dir_name
-
+	r_skew_set=(0 0.5 1)
+	s_skew_set=(0 0.5 1)
 	# disable huge pages
 sudo -S su << EOF
 $sudo_passward
@@ -217,8 +224,6 @@ EOF
 	cat /sys/kernel/mm/transparent_hugepage/defrag 
 	cat /sys/kernel/mm/transparent_hugepage/enabled 
 	
-	r_skew_set=(0 0.5 1)
-	s_skew_set=(0 0.5 1)
 	file_loop
 	python test_results_merge.py $dir_name merged_results.csv
 
@@ -297,9 +302,9 @@ function gen_data() {
 function run_all() {
 	expr_group_size
 	expr_pdis
-	expr_scale
-	expr_skew
 	expr_data_size
+	expr_skew
+	expr_scale
 	expr_smt
 	expr_huge_page
 }
