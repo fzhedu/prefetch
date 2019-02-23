@@ -51,7 +51,7 @@ static int init_mappings_from_file() {
       }
     }
 
-    printf("total cpus,  %d, there are, ", max_cpus);
+    printf("all cpus,  %d, there are, ", max_cpus);
     for (i = 0; i < max_cpus; ++i) {
       printf("%d\t", node_mapping[i]);
     }
