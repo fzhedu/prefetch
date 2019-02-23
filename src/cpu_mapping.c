@@ -23,24 +23,43 @@ static int node_mapping[MAX_NODES];
  */
 static int init_mappings_from_file() {
   FILE* cfg;
-  int i;
-#if !KNL
+  int i, j, begin, end;
+
   cfg = fopen(CUSTOM_CPU_MAPPING, "r");
   if (cfg != NULL) {
     if (fscanf(cfg, "%d", &max_cpus) <= 0) {
       perror("Could not parse input!\n");
     }
 
-    for (i = 0; i < max_cpus; i++) {
-      if (fscanf(cfg, "%d", &node_mapping[i]) <= 0) {
-        perror("Could not parse input!\n");
+    if (max_cpus >= 0) {  // 4 0,1,2,3,
+      for (i = 0; i < max_cpus; i++) {
+        if (fscanf(cfg, "%d,", &node_mapping[i]) <= 0) {
+          perror("Could not parse input!\n");
+        }
+      }
+    } else {  // -4 0-3,
+      max_cpus = -max_cpus;
+      for (i = 0; i < max_cpus;) {
+        if (fscanf(cfg, "%d,%d,", &begin, &end) <= 0) {
+          perror("Could not parse input!\n");
+        } else {
+          for (j = begin; j <= end; ++j) {
+            node_mapping[i] = j;
+            i++;
+          }
+        }
       }
     }
-
+    printf("total cpus = %d, there are: ", max_cpus);
+    for (i = 0; i < max_cpus; ++i) {
+      printf("%d\t", node_mapping[i]);
+    }
+    puts("end!");
     fclose(cfg);
     return 1;
   }
-#endif
+  perror("Could not open input!\n");
+  fclose(cfg);
   /* perror("Custom cpu mapping file not found!\n"); */
   return 0;
 }

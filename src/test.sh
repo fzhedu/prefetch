@@ -28,19 +28,23 @@ app="NPO"
 
 dir_name="results"
 
+core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
+
 #keep the same with REPEAT_PROBE
 repeat=3
 
 #set repeat time
 sed -i "/#define\ REPEAT_PROBE/c\#define\ REPEAT_PROBE\ ${repeat}" prefetch.h
 
-numa_config="-m $numa_mid -C 0-7"
+numa_mid="0"
 
-SKX_numa_config_set=("-m $numa_mid -C 0" "-m $numa_mid -C 0,2,4,6" "-m $numa_mid -C 0,2,4,6,8,10,12,14" " -C 0,2,4,6,8,10,12,14,1,3,5,7" "-C 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15"  "-m $numa_mid -C 0,16" "-m $numa_mid -C 0,16,2,18,4,20,6,22" "-m $numa_mid -C 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30" " -C 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30,1,17,3,19,5,21,7,23" "-C 0-31")
-SKX_numa_config_set_num=(1 4 8 12 16 2 8 16 24 32)
+numa_config="-m $numa_mid"
 
-KNL_numa_config_set=("-m $numa_mid -C 0" "-m $numa_mid -C 0-15" "-m $numa_mid -C 0-31" "-m $numa_mid -C 0-47" "-m $numa_mid -C 0-63" "-m $numa_mid -C 0,64" "-m $numa_mid -C 0-15,64-79" "-m $numa_mid -C 0-31,64-95" "-m $numa_mid -C 0-47,64-111" "-m $numa_mid -C 0-63,64-127" "-m $numa_mid -C 0,64,128,192" "-m $numa_mid -C 0-15,64-79,128-143,192-207" "-m $numa_mid -C 0-31,64-95,128-159,192-223" "-m $numa_mid -C 0-47,64-111,128-175,192-239" "-m $numa_mid -C 0-255")
-KNL_numa_config_set_num=(1 16 32 48 64 2 32 64 96 128 4 64 128 192 256)
+SKX_core_set=("1 0," "4 0,2,4,6," "8 0,2,4,6,8,10,12,14," "12 0,2,4,6,8,10,12,14,1,3,5,7," "16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"  "2 0,16," "8 0,16,2,18,4,20,6,22," "16 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30," "24 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30,1,17,3,19,5,21,7,23," "-32 0-31,")
+SKX_core_set_num=(1 4 8 12 16 2 8 16 24 32)
+
+KNL_core_set=("1 0," "-16 0-15," "-32 0-31," "-48 0-47," "-64 0-63," "2 0,64," "-32 0-15,64-79," "-64 0-31,64-95," "-96 0-47,64-111," "-128 0-63,64-127," "4 0,64,128,192," "-64 0-15,64-79,128-143,192-207," "-128 0-31,64-95,128-159,192-223," "-192 0-47,64-111,128-175,192-239," "-256 0-255,")
+KNL_core_set_num=(1 16 32 48 64 2 32 64 96 128 4 64 128 192 256)
 
 sudo_passward="claims"
 
@@ -65,18 +69,11 @@ function reset_default_param() {
 	disend=320
 
 	# paramter 3:application name
-	app="NPO"
+	#app="NPO"
 	#app="PIPELINE"
 	#app="BTS"
 
 	dir_name="results"
-
-	if [[ $processor == "SKX" ]]; then
-		numa_config="-N 0 -m 0 -C 0,2,4,6,8,10,12,14"
-	else
-		numa_config="-m $numa_mid -C 0-7"
-	fi
-
 }
 
 function run_a_cycle(){
@@ -167,15 +164,17 @@ function expr_scale() {
 	dir_name="results_scale"_$(date +%F-%T)
 	mkdir $dir_name
 	if [[ $processor == "SKX" ]]; then
-		for ((ct=0;ct<${#SKX_numa_config_set[@]};ct++)) do
-			numa_config=${SKX_numa_config_set[ct]}
-			thread_nums=(${SKX_numa_config_set_num[ct]})
+		for ((ct=0;ct<${#SKX_core_set[@]};ct++)) do
+			core_set=${SKX_core_set[ct]}
+			thread_nums=(${SKX_core_set_num[ct]})
+			sed -in "1s/.*/$core_set/" cpu-mapping.txt
 			file_loop
 		done;
 	else
-		for ((ct=0;ct<${#KNL_numa_config_set[@]};ct++)) do
-			numa_config=${KNL_numa_config_set[ct]}
-			thread_nums=(${KNL_numa_config_set_num[ct]})
+		for ((ct=0;ct<${#KNL_core_set[@]};ct++)) do
+			core_set=${KNL_core_set[ct]}
+			thread_nums=(${KNL_core_set_num[ct]})
+			sed -in "1s/.*/$core_set/" cpu-mapping.txt
 			file_loop
 		done;
 	fi	
@@ -241,8 +240,9 @@ function expr_smt() {
 	mkdir $dir_name
 	if [[ $processor == "SKX" ]]; then
 		ct=0
-		numa_config=${SKX_numa_config_set[ct]}
-		thread_nums=(${SKX_numa_config_set_num[ct]})
+		core_set=${SKX_core_set[ct]}
+		thread_nums=(${SKX_core_set_num[ct]})
+		sed -in "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 		ct=5
 		sstatestart=1
@@ -251,15 +251,17 @@ function expr_smt() {
 		stateend=1
 		disstart=0
 		disend=0
-		numa_config=${SKX_numa_config_set[ct]}
-		thread_nums=(${SKX_numa_config_set_num[ct]})
+		core_set=${SKX_core_set[ct]}
+		thread_nums=(${SKX_core_set_num[ct]})
+		sed -in "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop		
 		
 	else
 		# one physical core with optimal group size
 		ct=0
-		numa_config=${KNL_numa_config_set[ct]}
-		thread_nums=(${KNL_numa_config_set_num[ct]})
+		core_set=${KNL_core_set[ct]}
+		thread_nums=(${KNL_core_set_num[ct]})
+		sed -in "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 		# one physical core with SMT, but withou SMV
 		ct=10
@@ -269,8 +271,9 @@ function expr_smt() {
 		stateend=1
 		disstart=0
 		disend=0
-		numa_config=${KNL_numa_config_set[ct]}
-		thread_nums=(${KNL_numa_config_set_num[ct]})
+		core_set=${KNL_core_set[ct]}
+		thread_nums=(${KNL_core_set_num[ct]})
+		sed -in "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 	fi	
 	python test_results_merge.py $dir_name merged_results.csv
@@ -301,7 +304,7 @@ function run_all() {
 	expr_huge_page
 }
 function expr_apps() {
-	run_all
+#	run_all
 
 	app="BTS"
 	run_all
@@ -317,12 +320,17 @@ else
 	echo "the processor is $processor, but invalid"
 	exit
 fi
+
+
 if [[ $processor == "KNL" ]]; then
 	sudo_passward="hsdzhfang"
+	core_set="-64 0-63,"
 else
 	sudo_passward="claims"
-	numa_config="-N 0 -m 0 -C 0,2,4,6,8,10,12,14"
+	core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
 fi
+
+sed -in "1s/.*/$core_set/" cpu-mapping.txt
 
 echo "input expr name : 
 GROUP: group size
@@ -338,8 +346,17 @@ ALL: all experiments
 ------------------"
 read expr_name
 
-#sudo su << EOF
-#EOF
+# enalbe huge pages
+sudo -S su << EOF
+$sudo_passward
+        echo always > /sys/kernel/mm/transparent_hugepage/enabled
+        echo always > /sys/kernel/mm/transparent_hugepage/defrag
+EOF
+        echo "##re enable huge page##"
+        # comare with expr_skew under enabling huge pages
+        cat /sys/kernel/mm/transparent_hugepage/defrag
+        cat /sys/kernel/mm/transparent_hugepage/enabled
+
 
 if [[ ${expr_name} == 'DIS' ]]; then 
 	expr_pdis
