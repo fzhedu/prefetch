@@ -9,9 +9,9 @@ typedef struct StateSIMD StateSIMD;
 #define UNLIKELY(expr) __builtin_expect(!!(expr), 0)
 #define LIKELY(expr) __builtin_expect(!!(expr), 1)
 
-#define ScalarStateSize 1
+#define ScalarStateSize 4
 #define PDIS 320
-#define SIMDStateSize 1
+#define SIMDStateSize 2
 
 #define LOAD_FACTOR 1
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
