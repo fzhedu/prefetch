@@ -304,10 +304,20 @@ function run_all() {
 	expr_huge_page
 }
 function expr_apps() {
-#	run_all
+	app="NPO"
+	run_all
 
 	app="BTS"
 	run_all
+
+	if [[ $processor == "KNL" ]]; then
+		numa_config="-m 1"
+		app="NPO"
+		run_all
+		numa_config="-m 1"
+		app="BTS"
+		run_all		
+	fi
 }		
 
 echo "What is the processor ? SKX : KNL?"
