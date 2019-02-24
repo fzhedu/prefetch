@@ -1,4 +1,4 @@
-16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,
+1 0,
 #8 0 1 2 3 8 9 10 11
 # README: 
 # Modify this file for CPU affinity of threads.

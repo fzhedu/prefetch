@@ -3,7 +3,7 @@
 processor="SKY"
 
 #data size
-r_size_set=("64M")
+r_size_set=("1M")
 s_size_set=("500M")
 #data skew
 r_skew_set=(0 0.5 1)
@@ -15,11 +15,11 @@ thread_nums=(8)
 sstatestart=20
 sstateend=20
 # range=1~20, +1 simdstatesize=5
-statestart=5
-stateend=5
+statestart=4
+stateend=4
 # paramter 2: sequential prefetch distance
-disstart=320
-disend=320
+disstart=192
+disend=192
 
 # paramter 3:application name
 app="NPO"
@@ -36,9 +36,8 @@ repeat=2
 #set repeat time
 sed -i "/#define\ REPEAT_PROBE/c\#define\ REPEAT_PROBE\ ${repeat}" prefetch.h
 
-numa_mid="0"
 
-numa_config="-m $numa_mid"
+numa_config="-m 0"
 
 SKX_core_set=("1 0," "4 0,2,4,6," "8 0,2,4,6,8,10,12,14," "12 0,2,4,6,8,10,12,14,1,3,5,7," "16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"  "2 0,16," "8 0,16,2,18,4,20,6,22," "16 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30," "24 0,16,2,18,4,20,6,22,8,24,10,26,12,28,14,30,1,17,3,19,5,21,7,23," "-32 0-31,")
 SKX_core_set_num=(1 4 8 12 16 2 8 16 24 32)
@@ -50,7 +49,7 @@ sudo_passward="claims"
 
 function reset_default_param() {
 	#data size
-	r_size_set=("64M")
+	r_size_set=("1M")
 	s_size_set=("500M")
 	#data skew
 	r_skew_set=(0 1)
@@ -62,20 +61,12 @@ function reset_default_param() {
 	sstatestart=20
 	sstateend=20
 	# range=1~20, +1 simdstatesize=5
-	statestart=5
-	stateend=5
+	statestart=4
+	stateend=4
 
-	if [[ $app == "BTS" ]]; then
-		# range=1~40, +4 scalarstatesize
-		sstatestart=36
-		sstateend=36
-		# range=1~20, +1 simdstatesize=5
-		statestart=15
-		stateend=15	
-	fi
 	# paramter 2: sequential prefetch distance
-	disstart=320
-	disend=320
+	disstart=192
+	disend=192
 
 	# paramter 3:application name
 	#app="NPO"
@@ -128,7 +119,7 @@ function file_loop() {
 	for((pdis=$disstart;pdis<=$disend;pdis+=64)) do
 		#############修改prefetch.h文件##################
 		sed -i "/#define\ PDIS/c\#define\ PDIS\ ${pdis}" prefetch.h
-		for((scalarstatesize=$sstatestart,simdstatesize=$statestart;scalarstatesize<=$sstateend;scalarstatesize+=5,simdstatesize+=2)) do
+		for((scalarstatesize=$sstatestart,simdstatesize=$statestart;scalarstatesize<=$sstateend;scalarstatesize+=3,simdstatesize+=1)) do
 		        output_file=${dir_name}/${app}_pdis_${pdis}_simdstatesize_${simdstatesize}_scalarstatesize_${scalarstatesize}.txt
 		        echo $output_file
 		        #############修改prefetch.h文件##############
@@ -153,15 +144,14 @@ function file_loop() {
 		done;
 	done;
 }
-
+## change range and step in file_loop()
 function expr_group_size() {
 	reset_default_param
 	# set paramaters for this experiment
 	sstatestart=1
-	sstateend=60
+	sstateend=30
 	statestart=1
-	stateend=30
-
+	stateend=10
 	# paramter 3:application name
 	dir_name="results_group"_$(date +%F-%T)
 
@@ -175,7 +165,7 @@ function expr_pdis() {
 	# set parameters for this experiemnt 
 	# paramter 2: sequential prefetch distance
 	disstart=0
-	disend=512
+	disend=320
 	dir_name="results_pdis"_$(date +%F-%T)
 
 	mkdir $dir_name
@@ -259,13 +249,24 @@ function expr_smt() {
 	reset_default_param
 	dir_name="results_smt"_$(date +%F-%T)
 	mkdir $dir_name
+	r_size_set=("1M" "64M")
 	if [[ $processor == "SKX" ]]; then
-		ct=0
+                # one physical core with out SMT, but SMV
+		ct=2
 		core_set=${SKX_core_set[ct]}
 		thread_nums=(${SKX_core_set_num[ct]})
 		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
-		ct=5
+
+                # one physical core with SMT and SMV
+		ct=7
+		core_set=${SKX_core_set[ct]}
+		thread_nums=(${SKX_core_set_num[ct]})
+		sed -i "1s/.*/$core_set/" cpu-mapping.txt
+		file_loop
+
+                # one physical core with SMT, but withou SMV
+		ct=7
 		sstatestart=1
 		sstateend=1
 		statestart=1
@@ -279,23 +280,43 @@ function expr_smt() {
 		
 	else
 		# one physical core with optimal group size
-		ct=0
-		core_set=${KNL_core_set[ct]}
-		thread_nums=(${KNL_core_set_num[ct]})
-		sed -i "1s/.*/$core_set/" cpu-mapping.txt
-		file_loop
-		# one physical core with SMT, but withou SMV
-		ct=10
-		sstatestart=1
-		sstateend=1
-		statestart=1
-		stateend=1
-		disstart=0
-		disend=0
-		core_set=${KNL_core_set[ct]}
-		thread_nums=(${KNL_core_set_num[ct]})
-		sed -i "1s/.*/$core_set/" cpu-mapping.txt
-		file_loop
+                ct=1
+                core_set=${KNL_core_set[ct]}
+                thread_nums=(${KNL_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+
+                # one physical core with 2 SMT, and SMV
+                ct=6
+                core_set=${KNL_core_set[ct]}
+                thread_nums=(${KNL_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+                # one physical core with 2 SMT, but withou SMV
+                ct=6
+                sstatestart=1
+                sstateend=1
+                statestart=1
+                stateend=1
+                disstart=0
+                disend=0
+                core_set=${KNL_core_set[ct]}
+                thread_nums=(${KNL_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+                # one physical core with 4 SMT, but withou SMV
+                ct=11
+                sstatestart=1
+                sstateend=1
+                statestart=1
+                stateend=1
+                disstart=0
+                disend=0
+                core_set=${KNL_core_set[ct]}
+                thread_nums=(${KNL_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+
 	fi	
 	python test_results_merge.py $dir_name merged_results.csv
 }
@@ -316,29 +337,20 @@ function gen_data() {
 	done;
 }
 function run_all() {
+	expr_scale
+	expr_smt
 	expr_group_size
 	expr_pdis
 	expr_data_size
 	expr_skew
-	expr_scale
-	expr_smt
 	expr_huge_page
 }
 function expr_apps() {
-#	app="NPO"
-#	run_all
-
 	app="BTS"
 	run_all
 
-	if [[ $processor == "KNL" ]]; then
-		numa_config="-m 1"
-		app="NPO"
-		run_all
-		numa_config="-m 1"
-		app="BTS"
-		run_all		
-	fi
+	app="NPO"
+	run_all
 }		
 
 echo "What is the processor ? SKX : KNL?"
@@ -356,9 +368,12 @@ fi
 if [[ $processor == "KNL" ]]; then
 	sudo_passward="hsdzhfang"
 	core_set="-64 0-63,"
+	# 1 for MCDRAM
+	numa_config="-m 1"
 else
 	sudo_passward="claims"
 	core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
+	numa_config="-m 0"
 fi
 
 sed -i "1s/.*/$core_set/" cpu-mapping.txt
@@ -372,8 +387,8 @@ GEN: generate data
 DATA: data size
 PAGE: huge page
 SMT: smt
-APP: all applications, default NPO
-ALL: all experiments
+APP: all applications, NPO+BTS
+ALL: all experiments, default NPO
 ------------------"
 read expr_name
 
@@ -408,12 +423,12 @@ elif [[ ${expr_name} == 'SMT' ]]; then
 elif [[ ${expr_name} == 'APP' ]]; then	
 	expr_apps
 elif [[ ${expr_name} == 'ALL' ]]; then
+	expr_scale
+	expr_smt
 	expr_group_size
 	expr_pdis
-	expr_scale
 	expr_skew
 	expr_data_size
-	expr_smt
 	expr_huge_page
 else 
 	echo -n ${expr_name}
