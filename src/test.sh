@@ -31,7 +31,7 @@ dir_name="results"
 core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
 
 #keep the same with REPEAT_PROBE
-repeat=3
+repeat=2
 
 #set repeat time
 sed -i "/#define\ REPEAT_PROBE/c\#define\ REPEAT_PROBE\ ${repeat}" prefetch.h
@@ -64,6 +64,15 @@ function reset_default_param() {
 	# range=1~20, +1 simdstatesize=5
 	statestart=5
 	stateend=5
+
+	if [[ $app == "BTS" ]]; then
+		# range=1~40, +4 scalarstatesize
+		sstatestart=36
+		sstateend=36
+		# range=1~20, +1 simdstatesize=5
+		statestart=15
+		stateend=15	
+	fi
 	# paramter 2: sequential prefetch distance
 	disstart=320
 	disend=320
@@ -81,17 +90,24 @@ function reset_default_param() {
 		core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
 	fi
 	sed -i "1s/.*/$core_set/" cpu-mapping.txt
-
+sudo -S su << EOF
+$sudo_passward
+        free -g
+        sync
+        echo 3 > /proc/sys/vm/drop_caches
+        free -g
+EOF
+        echo "##drop caches##"
 }
 
 function run_a_cycle(){
 	#################NOTE: 请不要注释掉以下循环，修改参数请在上面修改###########################
-	for ((t=0;t<${#thread_nums[@]};t++)) do
-		for ((i=0;i<${#r_size_set[@]};i++)) do
-			for ((j=0;j<${#s_size_set[@]};j++)) do
-				for ((k=0;k<${#r_skew_set[@]};k++)) do
-#					for ((l=0;l<${#s_skew_set[@]};l++)) do
-						l=$k
+	for ((k=0;k<${#r_skew_set[@]};k++)) do
+#		for ((l=0;l<${#s_skew_set[@]};l++)) do
+		l=$k
+			for ((t=0;t<${#thread_nums[@]};t++)) do
+				for ((i=0;i<${#r_size_set[@]};i++)) do
+					for ((j=0;j<${#s_size_set[@]};j++)) do
 						echo "thread_num: ${thread_nums[t]}"
 						echo "r_size: ${r_size_set[i]}"
 						echo "s_size: ${s_size_set[j]}"
@@ -112,7 +128,7 @@ function file_loop() {
 	for((pdis=$disstart;pdis<=$disend;pdis+=64)) do
 		#############修改prefetch.h文件##################
 		sed -i "/#define\ PDIS/c\#define\ PDIS\ ${pdis}" prefetch.h
-		for((scalarstatesize=$sstatestart,simdstatesize=$statestart;scalarstatesize<=$sstateend;scalarstatesize+=3,simdstatesize+=1)) do
+		for((scalarstatesize=$sstatestart,simdstatesize=$statestart;scalarstatesize<=$sstateend;scalarstatesize+=5,simdstatesize+=2)) do
 		        output_file=${dir_name}/${app}_pdis_${pdis}_simdstatesize_${simdstatesize}_scalarstatesize_${scalarstatesize}.txt
 		        echo $output_file
 		        #############修改prefetch.h文件##############
@@ -142,9 +158,9 @@ function expr_group_size() {
 	reset_default_param
 	# set paramaters for this experiment
 	sstatestart=1
-	sstateend=30
+	sstateend=60
 	statestart=1
-	stateend=10
+	stateend=30
 
 	# paramter 3:application name
 	dir_name="results_group"_$(date +%F-%T)
@@ -309,8 +325,8 @@ function run_all() {
 	expr_huge_page
 }
 function expr_apps() {
-	app="NPO"
-	run_all
+#	app="NPO"
+#	run_all
 
 	app="BTS"
 	run_all

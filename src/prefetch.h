@@ -15,7 +15,7 @@ typedef struct StateSIMD StateSIMD;
 
 #define LOAD_FACTOR 1
 #define MULTI_TUPLE (BUCKET_SIZE - 1)
-#define REPEAT_PROBE 3
+#define REPEAT_PROBE 2
 #define SLEEP_TIME 0
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
