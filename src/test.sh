@@ -15,8 +15,8 @@ thread_nums=(8)
 sstatestart=20
 sstateend=20
 # range=1~20, +1 simdstatesize=5
-statestart=4
-stateend=4
+statestart=5
+stateend=5
 # paramter 2: sequential prefetch distance
 disstart=192
 disend=192
@@ -61,8 +61,8 @@ function reset_default_param() {
 	sstatestart=20
 	sstateend=20
 	# range=1~20, +1 simdstatesize=5
-	statestart=4
-	stateend=4
+	statestart=5
+	stateend=5
 
 	# paramter 2: sequential prefetch distance
 	disstart=192
@@ -215,10 +215,18 @@ function expr_data_size() {
 ##compare with skew
 function expr_huge_page() {
 	reset_default_param
+	#enable huge page
+	dir_name="results_huge_enable"_$(date +%F-%T)
+	mkdir $dir_name
+	r_skew_set=(1)
+	s_skew_set=(1)
+	r_size_set=("1M" "64M")
+	file_loop
+	python test_results_merge.py $dir_name merged_results.csv
+
+	#disable huge page
 	dir_name="results_huge_disable"_$(date +%F-%T)
 	mkdir $dir_name
-	r_skew_set=(0 0.5 1)
-	s_skew_set=(0 0.5 1)
 	# disable huge pages
 sudo -S su << EOF
 $sudo_passward
@@ -249,7 +257,6 @@ function expr_smt() {
 	reset_default_param
 	dir_name="results_smt"_$(date +%F-%T)
 	mkdir $dir_name
-	r_size_set=("1M" "64M")
 	if [[ $processor == "SKX" ]]; then
                 # one physical core with out SMT, but SMV
 		ct=2
@@ -292,26 +299,34 @@ function expr_smt() {
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
                 file_loop
-                # one physical core with 2 SMT, but withou SMV
-                ct=6
+                # one physical core with 4 SMT, and SMV
+                ct=11
+                core_set=${KNL_core_set[ct]}
+                thread_nums=(${KNL_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+
+		# disable SMV
                 sstatestart=1
                 sstateend=1
                 statestart=1
                 stateend=1
                 disstart=0
                 disend=0
+                # one physical core with 1 SMT, but withou SMV
+                ct=1
+                core_set=${KNL_core_set[ct]}
+                thread_nums=(${KNL_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+                # one physical core with 2 SMT, but withou SMV
+                ct=6
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
                 file_loop
                 # one physical core with 4 SMT, but withou SMV
                 ct=11
-                sstatestart=1
-                sstateend=1
-                statestart=1
-                stateend=1
-                disstart=0
-                disend=0
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
