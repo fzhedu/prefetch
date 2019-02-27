@@ -1043,12 +1043,15 @@ result_t *NPO(relation_t *relR, relation_t *relS, int nthreads) {
     args[i].relR.num_tuples = (i == (nthreads - 1)) ? numR : numRthr;
     args[i].relR.tuples = relR->tuples + numRthr * i;
     numR -= numRthr;
-
+#if DIVIDE
     /* assing part of the relS for next thread */
     args[i].relS.num_tuples = (i == (nthreads - 1)) ? numS : numSthr;
     args[i].relS.tuples = relS->tuples + numSthr * i;
     numS -= numSthr;
-
+#else
+    args[i].relS.num_tuples = relS->num_tuples;
+    args[i].relS.tuples = relS->tuples;
+#endif
     args[i].threadresult = &(joinresult->resultlist[i]);
 
     rv = pthread_create(&tid[i], &attr, npo_thread, (void *)&args[i]);
@@ -1060,8 +1063,12 @@ result_t *NPO(relation_t *relR, relation_t *relS, int nthreads) {
 
   for (i = 0; i < nthreads; i++) {
     pthread_join(tid[i], NULL);
-    /* sum up results */
+/* sum up results */
+#if DIVIDE
     result += args[i].num_results;
+#else
+    result = args[i].num_results;
+#endif
   }
   joinresult->totalresults = result;
   joinresult->nthreads = nthreads;

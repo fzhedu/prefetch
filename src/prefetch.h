@@ -20,6 +20,7 @@ typedef struct StateSIMD StateSIMD;
 #define VECTOR_SCALE 8
 #define DIR_PREFETCH 1
 #define SEQPREFETCH PDIS
+#define DIVIDE 0
 #define A 1
 #define B 30000056
 #define SIMD_A _mm512_set1_epi64(A)
