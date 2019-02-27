@@ -133,7 +133,7 @@ int64_t search_tree_AMAC(tree_t *tree, relation_t *rel, void *output) {
   return matches;
 }
 volatile char g_lock;
-uint64_t total_num;
+volatile uint64_t total_num = 0;
 void *bts_thread(void *param) {
   int rv;
   total_num = 0;
@@ -200,7 +200,11 @@ void *bts_thread(void *param) {
     args->num_results =
         probe_simd_amac_compact2(args->ht, &args->relS, chainedbuf_compact);
     lock(&g_lock);
+    #if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -228,7 +232,11 @@ void *bts_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = bts_smv(args->tree, &args->relS, chainedbuf_compact1);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -256,7 +264,11 @@ void *bts_thread(void *param) {
     args->num_results =
         probe_hashtable_raw_prefetch(args->ht, &args->relS, chainedbuf_rp);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -284,7 +296,11 @@ void *bts_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = probe_gp(args->ht, &args->relS, chainedbuf_gp);
     lock(&g_lock);
+    #if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -313,7 +329,11 @@ void *bts_thread(void *param) {
     args->num_results =
         search_tree_AMAC(args->tree, &args->relS, chainedbuf_amac);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -343,7 +363,11 @@ void *bts_thread(void *param) {
     args->num_results =
         probe_simd_gp(args->ht, &args->relS, chainedbuf_simd_gp);
     lock(&g_lock);
+    #if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -372,7 +396,11 @@ void *bts_thread(void *param) {
     args->num_results =
         bts_simd_amac(args->tree, &args->relS, chainedbuf_simd_amac);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -401,7 +429,11 @@ void *bts_thread(void *param) {
     args->num_results =
         bts_simd_amac_raw(args->tree, &args->relS, chainedbuf_simd_amac_raw);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -427,7 +459,11 @@ void *bts_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = bts_simd(args->tree, &args->relS, chainedbuf_simd);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -455,7 +491,11 @@ void *bts_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = search_tree_raw(args->tree, &args->relS, chainedbuf);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {

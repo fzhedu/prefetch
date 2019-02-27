@@ -4,12 +4,12 @@ processor="SKY"
 
 #data size
 r_size_set=("1M")
-s_size_set=("500M")
+s_size_set=("50M")
 #data skew
 r_skew_set=(0 0.5 1)
 s_skew_set=(0 0.5 1)
 #scalability
-thread_nums=(8)
+thread_nums=(1)
 
 # range=1~40, +4 scalarstatesize
 sstatestart=20
@@ -31,7 +31,7 @@ dir_name="results"
 core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"
 
 #keep the same with REPEAT_PROBE
-repeat=2
+repeat=3
 
 #set repeat time
 sed -i "/#define\ REPEAT_PROBE/c\#define\ REPEAT_PROBE\ ${repeat}" prefetch.h
@@ -50,12 +50,12 @@ sudo_passward="claims"
 function reset_default_param() {
 	#data size
 	r_size_set=("1M")
-	s_size_set=("500M")
+	s_size_set=("50M")
 	#data skew
 	r_skew_set=(0 1)
 	s_skew_set=(0 1)
 	#scalability
-	thread_nums=(8)
+	thread_nums=(1)
 
 	# range=1~40, +4 scalarstatesize
 	sstatestart=20
@@ -149,7 +149,7 @@ function expr_group_size() {
 	reset_default_param
 	# set paramaters for this experiment
 	sstatestart=1
-	sstateend=30
+	sstateend=23
 	statestart=1
 	stateend=10
 	# paramter 3:application name
@@ -208,7 +208,7 @@ function expr_data_size() {
 	dir_name="results_data_size"_$(date +%F-%T)
 	mkdir $dir_name
 
-	r_size_set=("16K" "64K" "256K" "512K" "1M" "16M" "64M")
+	r_size_set=("16K" "64K" "256K" "512K" "1M" "4M" "16M" "64M")
 	file_loop
 	python test_results_merge.py $dir_name merged_results.csv
 }
@@ -259,21 +259,21 @@ function expr_smt() {
 	mkdir $dir_name
 	if [[ $processor == "SKX" ]]; then
                 # one physical core with out SMT, but SMV
-		ct=2
+		ct=0
 		core_set=${SKX_core_set[ct]}
 		thread_nums=(${SKX_core_set_num[ct]})
 		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 
                 # one physical core with SMT and SMV
-		ct=7
+		ct=5
 		core_set=${SKX_core_set[ct]}
 		thread_nums=(${SKX_core_set_num[ct]})
 		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 
                 # one physical core with SMT, but withou SMV
-		ct=7
+		ct=5
 		sstatestart=1
 		sstateend=1
 		statestart=1
@@ -287,20 +287,20 @@ function expr_smt() {
 		
 	else
 		# one physical core with optimal group size
-                ct=1
+                ct=0
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
                 file_loop
 
                 # one physical core with 2 SMT, and SMV
-                ct=6
+                ct=5
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
                 file_loop
                 # one physical core with 4 SMT, and SMV
-                ct=11
+                ct=10
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
@@ -314,19 +314,19 @@ function expr_smt() {
                 disstart=0
                 disend=0
                 # one physical core with 1 SMT, but withou SMV
-                ct=1
+                ct=0
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
                 file_loop
                 # one physical core with 2 SMT, but withou SMV
-                ct=6
+                ct=5
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
                 file_loop
                 # one physical core with 4 SMT, but withou SMV
-                ct=11
+                ct=10
                 core_set=${KNL_core_set[ct]}
                 thread_nums=(${KNL_core_set_num[ct]})
                 sed -i "1s/.*/$core_set/" cpu-mapping.txt
@@ -339,26 +339,26 @@ function expr_smt() {
 function gen_data() {
 	reset_default_param
 	thread_nums=(8)
-	r_size_set=("16384" "65536" "262144" "524288" "1048576" "16777216")
+	r_size_set=("16384" "65536" "262144" "524288" "1048576" "4194304" "16777216" "67108864")
 	# make sure |r_size_set| < 10
 	t=0
 	for ((i=0;i<${#r_size_set[@]};i++)) do 
-		numactl -C 0-16 ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=0 --s-skew=0 &
+		numactl -C 0-16 ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=52428800 --r-skew=0 --s-skew=0 &
 		((t++))
-		numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=0.5 --s-skew=0.5 &
+		numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=52428800 --r-skew=0.5 --s-skew=0.5 &
 		((t++))
-		numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=524288000 --r-skew=1 --s-skew=1 
+		numactl -C $t ./mchashjoins -a GEN -n 16  --r-size=${r_size_set[i]}  --s-size=52428800 --r-skew=1 --s-skew=1 
 		((t++))
 	done;
 }
 function run_all() {
-	expr_scale
 	expr_smt
 	expr_group_size
-	expr_pdis
 	expr_data_size
 	expr_skew
 	expr_huge_page
+	expr_pdis
+	expr_scale
 }
 function expr_apps() {
 	app="BTS"
@@ -384,7 +384,7 @@ if [[ $processor == "KNL" ]]; then
 	sudo_passward="hsdzhfang"
 	core_set="-64 0-63,"
 	# 1 for MCDRAM
-	numa_config="-m 1"
+	numa_config="-m 0"
 else
 	sudo_passward="claims"
 	core_set="16 0,2,4,6,8,10,12,14,1,3,5,7,9,11,13,15,"

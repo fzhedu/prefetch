@@ -621,7 +621,7 @@ void build_hashtable_mt(hashtable_t *ht, relation_t *rel,
  * @return
  */
 volatile char g_lock;
-volatile uint64_t total_num = 0;
+volatile static uint64_t total_num = 0;
 
 void *npo_thread(void *param) {
   int rv;
@@ -690,7 +690,11 @@ void *npo_thread(void *param) {
     args->num_results =
         probe_simd_amac_compact2(args->ht, &args->relS, chainedbuf_compact);
     lock(&g_lock);
+    #if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -718,7 +722,11 @@ void *npo_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = smv_probe(args->ht, &args->relS, chainedbuf_compact1);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -746,7 +754,11 @@ void *npo_thread(void *param) {
     args->num_results =
         probe_hashtable_raw_prefetch(args->ht, &args->relS, chainedbuf_rp);
     lock(&g_lock);
+    #if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -773,7 +785,11 @@ void *npo_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = probe_gp(args->ht, &args->relS, chainedbuf_gp);
     lock(&g_lock);
+    #if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -800,7 +816,11 @@ void *npo_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = probe_AMAC(args->ht, &args->relS, chainedbuf_amac);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -830,7 +850,11 @@ void *npo_thread(void *param) {
     args->num_results =
         probe_simd_gp(args->ht, &args->relS, chainedbuf_simd_gp);
     lock(&g_lock);
+    #if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -859,7 +883,11 @@ void *npo_thread(void *param) {
     args->num_results =
         probe_simd_amac(args->ht, &args->relS, chainedbuf_simd_amac);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -887,7 +915,11 @@ void *npo_thread(void *param) {
     args->num_results =
         probe_simd_amac_raw(args->ht, &args->relS, chainedbuf_simd_amac_raw);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -913,7 +945,11 @@ void *npo_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = probe_simd(args->ht, &args->relS, chainedbuf_simd);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
@@ -941,7 +977,11 @@ void *npo_thread(void *param) {
     gettimeofday(&t1, NULL);
     args->num_results = probe_hashtable(args->ht, &args->relS, chainedbuf);
     lock(&g_lock);
+#if DIVIDE
     total_num += args->num_results;
+#else
+    total_num = args->num_results;
+#endif
     unlock(&g_lock);
     BARRIER_ARRIVE(args->barrier, rv);
     if (args->tid == 0) {
