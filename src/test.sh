@@ -354,7 +354,7 @@ function expr_perf() {
 		core_set=${SKX_core_set[ct]}
 		thread_nums=(${SKX_core_set_num[ct]})
 		sed -i "1s/.*/$core_set/" cpu-mapping.txt
-		numa_config="-m 0"
+		numa_config="-m 0,1"
 		file_loop	
 	else
 		# all
