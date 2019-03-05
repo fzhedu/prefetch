@@ -11,7 +11,7 @@ typedef struct StateSIMD StateSIMD;
 
 #define ScalarStateSize 20
 #define PDIS 192
-#define SIMDStateSize 4
+#define SIMDStateSize 5
 
 #define LOAD_FACTOR 1
 #define MULTI_TUPLE (BUCKET_SIZE - 1)

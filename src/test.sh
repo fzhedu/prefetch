@@ -272,14 +272,21 @@ function expr_smt() {
 		sed -i "1s/.*/$core_set/" cpu-mapping.txt
 		file_loop
 
-                # one physical core with SMT, but withou SMV
-		ct=5
+                # disable SMV
 		sstatestart=1
 		sstateend=1
 		statestart=1
 		stateend=1
 		disstart=0
 		disend=0
+		# one physical core, no SMV, SMT
+                ct=0
+                core_set=${SKX_core_set[ct]}
+                thread_nums=(${SKX_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+		# one physical core, SMV + SMT
+		ct=5
 		core_set=${SKX_core_set[ct]}
 		thread_nums=(${SKX_core_set_num[ct]})
 		sed -i "1s/.*/$core_set/" cpu-mapping.txt
@@ -335,6 +342,30 @@ function expr_smt() {
 	fi	
 	python test_results_merge.py $dir_name merged_results.csv
 }
+function expr_perf() {
+	reset_default_param
+	dir_name="results_perf"_$(date +%F-%T)
+	mkdir $dir_name
+	r_skew_set=(0 0.5 1)
+	s_skew_set=(0 0.5 1)
+	if [[ $processor == "SKX" ]]; then
+                # all
+		ct=9
+		core_set=${SKX_core_set[ct]}
+		thread_nums=(${SKX_core_set_num[ct]})
+		sed -i "1s/.*/$core_set/" cpu-mapping.txt
+		numa_config="-m 0"
+		file_loop	
+	else
+		# all
+                ct=14
+                core_set=${KNL_core_set[ct]}
+                thread_nums=(${KNL_core_set_num[ct]})
+                sed -i "1s/.*/$core_set/" cpu-mapping.txt
+                file_loop
+	fi	
+	python test_results_merge.py $dir_name merged_results.csv
+}
 
 function gen_data() {
 	reset_default_param
@@ -362,10 +393,11 @@ function run_all() {
 }
 function expr_apps() {
 	app="BTS"
-	run_all
-
+#	run_all
+	expr_perf
 	app="NPO"
-	run_all
+#	run_all
+	expr_perf
 }		
 
 echo "What is the processor ? SKX : KNL?"
@@ -402,6 +434,7 @@ GEN: generate data
 DATA: data size
 PAGE: huge page
 SMT: smt
+PERF: compare using all skew all cores
 APP: all applications, NPO+BTS
 ALL: all experiments, default NPO
 ------------------"
@@ -437,6 +470,8 @@ elif [[ ${expr_name} == 'SMT' ]]; then
 	expr_smt
 elif [[ ${expr_name} == 'APP' ]]; then	
 	expr_apps
+elif [[ ${expr_name} == 'PERF' ]]; then	
+	expr_perf
 elif [[ ${expr_name} == 'ALL' ]]; then
 	expr_scale
 	expr_smt

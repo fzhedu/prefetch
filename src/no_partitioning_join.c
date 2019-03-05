@@ -681,7 +681,15 @@ void *npo_thread(void *param) {
     stopTimer(&args->timer2);
   }
 #endif
-  ////////// compact, do two branches in the integration
+  if (args->tid == 0) {
+    puts("+++++sleep begin+++++");
+  }
+  sleep(SLEEP_TIME);
+  if (args->tid == 0) {
+    puts("+++++sleep end  +++++");
+  }
+ 
+ ////////// compact, do two branches in the integration
 
   /*chainedtuplebuffer_t *chainedbuf_compact = chainedtuplebuffer_init();
   for (int rp = 0; rp < REPEAT_PROBE; ++rp) {
